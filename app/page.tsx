@@ -4,19 +4,7 @@ import { Navigation } from "@/components/navigation"
 export default function MinecraftServer() {
   return (
     <div className="min-h-screen bg-[#1A1C1E] text-white">
-      {/* Header with Logo */}
-      <header className="container mx-auto pt-8 pb-4 px-4">
-        <div className="flex justify-center">
-          <Image
-            src="/placeholder.svg"
-            alt="Server Logo"
-            width={400}
-            height={120}
-            className="h-[120px] w-auto"
-            priority
-          />
-        </div>
-      </header>
+      
 
       <Navigation />
 
