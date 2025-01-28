@@ -1,4 +1,4 @@
-'use client'
+"use client"
 
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import Image from "next/image"
@@ -13,14 +13,14 @@ interface ImageModalProps {
 export function ImageModal({ isOpen, onClose, src, alt }: ImageModalProps) {
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-[90vw] max-h-[90vh]">
-        <div className="relative w-full aspect-square">
+      <DialogContent className="max-w-[95vw] max-h-[95vh] p-0">
+        <div className="relative w-full h-full flex items-center justify-center">
           <Image
-            src={src}
+            src={src || "/placeholder.svg"}
             alt={alt}
-            fill
-            className="object-contain"
-            sizes="(max-width: 90vw)"
+            className="max-w-full max-h-[95vh] w-auto h-auto object-contain"
+            width={1920}
+            height={1080}
           />
         </div>
       </DialogContent>

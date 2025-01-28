@@ -24,9 +24,9 @@ export default function MinecraftServer() {
 
       {/* Feature Image */}
       <section className="container mx-auto px-4 mb-16">
-        <div className="relative aspect-[21/9] max-w-6xl mx-auto overflow-hidden rounded-lg">
+        <div className="relative aspect-[21/12] max-w-6xl mx-auto overflow-hidden rounded-lg">
           <Image
-            src="/placeholder.svg"
+            src="/bodyimage.png"
             alt="Server Feature"
             fill
             className="object-cover"
@@ -66,6 +66,7 @@ export default function MinecraftServer() {
         <div className="container mx-auto px-4 text-center text-gray-400">
           <p>Connect with us on Discord to join our community!</p>
           <p>Application approval required to join.</p>
+          <p>For business inquiries please email sharkcicle@gmail.com</p>
           <p className="mt-2">Server IP: play.sharkcicle.com</p>
         </div>
       </footer>

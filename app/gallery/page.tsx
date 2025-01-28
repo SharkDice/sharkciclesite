@@ -1,24 +1,24 @@
-'use client'
+"use client"
 
 import { useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { ImageModal } from "@/components/image-modal"
 import { Button } from "@/components/ui/button"
-import { Home } from 'lucide-react'
+import { Home } from "lucide-react"
 import { Navigation } from "@/components/navigation"
 
 export default function Gallery() {
-  const [selectedImage, setSelectedImage] = useState<string | null>(null)
+  const [selectedImage, setSelectedImage] = useState<{ src: string; alt: string } | null>(null)
 
   // Replace these with your actual server images
   const galleryImages = [
-    { src: "/placeholder.svg", alt: "Server Screenshot 1" },
-    { src: "/placeholder.svg", alt: "Server Screenshot 2" },
-    { src: "/placeholder.svg", alt: "Server Screenshot 3" },
-    { src: "/placeholder.svg", alt: "Server Screenshot 4" },
-    { src: "/placeholder.svg", alt: "Server Screenshot 5" },
-    { src: "/placeholder.svg", alt: "Server Screenshot 6" },
+    { src: "/colosseum.png", alt: "Server Screenshot 1" },
+    { src: "/abcmonument.png", alt: "Server Screenshot 2" },
+    { src: "/damageinc.png", alt: "Server Screenshot 3" },
+    { src: "/groupphoto1.png", alt: "Server Screenshot 4" },
+    { src: "/msg.png", alt: "Server Screenshot 5" },
+    { src: "/deadpool.png", alt: "Server Screenshot 6" },
   ]
 
   return (
@@ -41,10 +41,10 @@ export default function Gallery() {
             <div
               key={index}
               className="relative aspect-square rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
-              onClick={() => setSelectedImage(image.src)}
+              onClick={() => setSelectedImage(image)}
             >
               <Image
-                src={image.src}
+                src={image.src || "/placeholder.svg"}
                 alt={image.alt}
                 fill
                 className="object-cover"
@@ -59,8 +59,8 @@ export default function Gallery() {
         <ImageModal
           isOpen={true}
           onClose={() => setSelectedImage(null)}
-          src={selectedImage}
-          alt="Server Screenshot"
+          src={selectedImage.src || "/placeholder.svg"}
+          alt={selectedImage.alt}
         />
       )}
     </div>
