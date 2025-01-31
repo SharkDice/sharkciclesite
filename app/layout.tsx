@@ -5,11 +5,13 @@ import Image from 'next/image'
 
 const inter = Inter({ subsets: ['latin'] })
 
+// add favicon using the image server-icon-512.png
+
 export const metadata: Metadata = {
   title: 'Sharkcicle Minecraft Server',
   description: 'Join our thriving Minecraft community!',
 }
-
+// Hello
 export default function RootLayout({
   children,
 }: {
