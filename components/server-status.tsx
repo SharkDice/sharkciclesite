@@ -123,7 +123,7 @@ export function ServerStatus() {
   return (
     <div className={`rounded-lg p-6 ${status.online ? 'bg-[#2C2F33]' : 'bg-red-900 bg-opacity-20 border border-red-700'}`}>
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-2xl font-bold">Server Status</h3>
+        <h3 className="text-2xl font-bold">Sharkcicle Server Status</h3>
         <div className="flex items-center gap-3">
           <Button
             onClick={handleRefresh}

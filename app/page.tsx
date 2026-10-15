@@ -23,13 +23,6 @@ export default function MinecraftServer() {
         </div>
       </section>
 
-      {/* Server Status */}
-      <section className="container mx-auto px-4 mb-16">
-        <div className="max-w-2xl mx-auto">
-          <ServerStatus />
-        </div>
-      </section>
-
       {/* Feature Image */}
       <section className="container mx-auto px-4 mb-16">
         <div className="relative aspect-[21/12] max-w-6xl mx-auto overflow-hidden rounded-lg">
@@ -39,6 +32,13 @@ export default function MinecraftServer() {
             fill
             className="object-cover"
           />
+        </div>
+      </section>
+
+      {/* Server Status */}
+      <section className="container mx-auto px-4 mb-16">
+        <div className="max-w-2xl mx-auto">
+          <ServerStatus />
         </div>
       </section>
 
