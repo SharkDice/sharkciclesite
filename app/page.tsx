@@ -1,6 +1,7 @@
 import Image from "next/image"
 import { Navigation } from "@/components/navigation"
 import { ServerStatus } from "@/components/server-status"
+import { ImageSlideshow } from "@/components/image-slideshow"
 
 export default function MinecraftServer() {
   return (
@@ -23,16 +24,9 @@ export default function MinecraftServer() {
         </div>
       </section>
 
-      {/* Feature Image */}
+      {/* Feature Image Slideshow */}
       <section className="container mx-auto px-4 mb-16">
-        <div className="relative aspect-[21/12] max-w-6xl mx-auto overflow-hidden rounded-lg">
-          <Image
-            src="/bodyimage.png"
-            alt="Server Feature"
-            fill
-            className="object-cover"
-          />
-        </div>
+        <ImageSlideshow />
       </section>
 
       {/* Server Status */}
