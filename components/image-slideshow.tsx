@@ -62,12 +62,23 @@ export function ImageSlideshow() {
     })
   }
 
+  const previousIndex = (slideshow.currentIndex - 1 + slideshow.images.length) % slideshow.images.length
+
   return (
     <div className="relative aspect-[21/12] max-w-6xl mx-auto overflow-hidden rounded-lg">
-      <div
-        key={slideshow.currentIndex}
-        className="absolute inset-0 animate-fadeIn"
-      >
+      {/* Previous image fading out */}
+      <div className="absolute inset-0 animate-fadeOut">
+        <Image
+          src={slideshow.images[previousIndex]}
+          alt={`Slide ${previousIndex + 1}`}
+          fill
+          className="object-cover"
+          priority
+        />
+      </div>
+
+      {/* Current image fading in */}
+      <div className="absolute inset-0 animate-fadeIn">
         <Image
           src={slideshow.images[slideshow.currentIndex]}
           alt={`Slide ${slideshow.currentIndex + 1}`}
