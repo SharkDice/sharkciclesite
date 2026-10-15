@@ -13,7 +13,7 @@ export default function MinecraftServer() {
         <div className="max-w-3xl mx-auto text-center">
           <h1 className="text-4xl font-bold mb-6">Welcome to Sharkcicle!</h1>
           <p className="text-lg text-gray-300">
-            Sharkcicle Smp is a thriving 1.21 Minecraft server, established on December 4th, 2021.
+            Sharkcicle Smp is a thriving Minecraft server, established on December 4th, 2021.
             Our mission is to foster collaboration and collective achievement, transcending individual
             efforts. With cherished memories, valued friendships, and endless enjoyment, our commitment
             is unwavering; the server will persist indefinitely, ensuring your creations endure. Join our
