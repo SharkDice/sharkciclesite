@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Image from 'next/image'
 
 interface ImageSlideshow {
   images: string[]
@@ -65,40 +64,83 @@ export function ImageSlideshow() {
   const previousIndex = (slideshow.currentIndex - 1 + slideshow.images.length) % slideshow.images.length
 
   return (
-    <div className="relative aspect-[21/12] max-w-6xl mx-auto overflow-hidden rounded-lg">
-      {/* Previous image fading out */}
-      <div className="absolute inset-0 animate-fadeOut">
-        <Image
-          src={slideshow.images[previousIndex]}
-          alt={`Slide ${previousIndex + 1}`}
-          fill
-          className="object-cover"
-          priority
-        />
-      </div>
-
-      {/* Current image fading in */}
-      <div className="absolute inset-0 animate-fadeIn">
-        <Image
-          src={slideshow.images[slideshow.currentIndex]}
-          alt={`Slide ${slideshow.currentIndex + 1}`}
-          fill
-          className="object-cover"
-          priority
-        />
-      </div>
+    <div style={{
+      position: 'relative',
+      aspectRatio: '21 / 12',
+      maxWidth: '42rem',
+      margin: '0 auto',
+      overflow: 'hidden',
+      borderRadius: '0.5rem',
+      backgroundColor: '#000',
+    }}>
+      {/* Previous image - fading out */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          backgroundImage: `url('${slideshow.images[previousIndex]}')`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          opacity: 0,
+          transition: 'opacity 2s ease-in-out',
+          zIndex: 1,
+        }}
+      />
+      
+      {/* Current image - fading in */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          backgroundImage: `url('${slideshow.images[slideshow.currentIndex]}')`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          opacity: 1,
+          transition: 'opacity 2s ease-in-out',
+          zIndex: 2,
+        }}
+      />
 
       {slideshow.images.length > 1 && (
-        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2 z-10">
+        <div style={{
+          position: 'absolute',
+          bottom: '1rem',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          display: 'flex',
+          gap: '0.5rem',
+          zIndex: 10,
+        }}>
           {slideshow.images.map((_, index) => (
             <button
               key={`dot-${index}`}
               onClick={() => handleDotClick(index)}
-              className={`w-2 h-2 rounded-full transition-all duration-300 ${
-                index === slideshow.currentIndex
-                  ? 'bg-white w-6'
-                  : 'bg-gray-400 hover:bg-gray-300'
-              }`}
+              style={{
+                width: '0.5rem',
+                height: '0.5rem',
+                borderRadius: '9999px',
+                border: 'none',
+                backgroundColor: index === slideshow.currentIndex ? '#ffffff' : '#9ca3af',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease',
+                padding: 0,
+              }}
+              onMouseEnter={(e) => {
+                if (index !== slideshow.currentIndex) {
+                  e.currentTarget.style.backgroundColor = '#d1d5db'
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (index !== slideshow.currentIndex) {
+                  e.currentTarget.style.backgroundColor = '#9ca3af'
+                }
+              }}
               aria-label={`Go to slide ${index + 1}`}
             />
           ))}
