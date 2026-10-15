@@ -1,5 +1,6 @@
 import Image from "next/image"
 import { Navigation } from "@/components/navigation"
+import { ServerStatus } from "@/components/server-status"
 
 export default function MinecraftServer() {
   return (
@@ -19,6 +20,13 @@ export default function MinecraftServer() {
             is unwavering; the server will persist indefinitely, ensuring your creations endure. Join our
             vibrant community through the Discord link above and be part of something extraordinary!
           </p>
+        </div>
+      </section>
+
+      {/* Server Status */}
+      <section className="container mx-auto px-4 mb-16">
+        <div className="max-w-2xl mx-auto">
+          <ServerStatus />
         </div>
       </section>
 
