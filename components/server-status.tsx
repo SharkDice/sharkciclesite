@@ -211,7 +211,7 @@ export function ServerStatus() {
       )}
 
       <div className="mt-4 pt-4 border-t border-gray-600 text-xs text-gray-400">
-        <p>Server: play.sharkcicle.com:25565</p>
+        <p>Server: play.sharkcicle.com</p>
       </div>
     </div>
   )

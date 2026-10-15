@@ -1,65 +1,50 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { status } from 'minecraft-server-util'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
-  const serverAddress = '170.52.103.140'
-  const serverPort = '25565'
-  
+  const SERVER_HOST = 'play.sharkcicle.com'
+  const SERVER_PORT = 25565
+
   try {
-    // Try multiple API services since proxy setups can be unreliable
-    const apis = [
-      `https://api.mcsrvstat.us/v3/status/java/${serverAddress}:${serverPort}`,
-      `https://api.mcsrvstat.us/v3/status/java/${serverAddress}`,
-    ]
+    // Query the Minecraft server directly using the protocol
+    const serverStatus = await status(SERVER_HOST, SERVER_PORT, { timeout: 10000 })
 
-    let data = null
-    let lastError = null
-
-    for (const url of apis) {
-      try {
-        const response = await fetch(url, {
-          cache: 'no-store',
-          signal: AbortSignal.timeout(8000)
-        })
-        
-        if (response.ok) {
-          data = await response.json()
-          break
-        }
-      } catch (error) {
-        lastError = error
-        continue
-      }
+    // Extract MOTD - use the clean version without formatting codes
+    let motd = 'Welcome to Sharkcicle SMP!'
+    if (serverStatus.motd?.clean) {
+      // Get first line of clean MOTD
+      motd = serverStatus.motd.clean.split('\n')[0].trim() || 'Welcome to Sharkcicle SMP!'
     }
 
-    // If we got data, return it
-    if (data) {
-      return NextResponse.json(data, {
-        headers: {
-          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-        }
-      })
+    // Format the response
+    const response = {
+      online: true,
+      players: {
+        online: serverStatus.players?.online || 0,
+        max: serverStatus.players?.max || 0,
+      },
+      motd: motd,
+      version: serverStatus.version?.name || 'Unknown',
+      favicon: serverStatus.favicon || null,
     }
 
-    // Return offline status with debug info
-    return NextResponse.json({
-      online: false,
-      players: { online: 0, max: 0 },
-      error: 'Unable to reach server status API. Server may be offline or unreachable.',
-      motd: 'Unable to fetch status'
-    }, {
+    return NextResponse.json(response, {
       headers: {
         'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
       }
     })
   } catch (error) {
-    console.error('Server status error:', error)
+    console.error('Server status query error:', error)
+    
+    // Return offline status when query fails
     return NextResponse.json({
       online: false,
       players: { online: 0, max: 0 },
-      error: 'Failed to fetch server status',
-      motd: 'Connection error'
+      motd: 'Server is offline or unreachable',
+      version: '',
+      error: 'Unable to connect to server',
     }, {
       headers: {
         'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
