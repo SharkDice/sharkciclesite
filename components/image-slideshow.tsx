@@ -49,49 +49,31 @@ export function ImageSlideshow() {
     }, 7000)
 
     return () => clearInterval(timer)
-  }, [slideshow.images.length])
+  }, [slideshow.images])
 
   if (!mounted || slideshow.images.length === 0) {
     return null
   }
 
-  const nextIndex = (slideshow.currentIndex + 1) % slideshow.images.length
+  const handleDotClick = (index: number) => {
+    setSlideshow({
+      images: slideshow.images,
+      currentIndex: index,
+    })
+  }
 
   return (
     <div className="relative aspect-[21/12] max-w-6xl mx-auto overflow-hidden rounded-lg">
-      <style>{`
-        @keyframes crossFade {
-          0% { opacity: 1; }
-          45% { opacity: 1; }
-          55% { opacity: 0; }
-          100% { opacity: 0; }
-        }
-        .fade-out-image {
-          animation: crossFade 7s ease-in-out infinite;
-        }
-      `}</style>
-
-      {/* Base image - always present */}
-      <div className="absolute inset-0">
+      <div
+        key={slideshow.currentIndex}
+        className="absolute inset-0 animate-fadeIn"
+      >
         <Image
           src={slideshow.images[slideshow.currentIndex]}
-          alt="Base image"
+          alt={`Slide ${slideshow.currentIndex + 1}`}
           fill
           className="object-cover"
           priority
-          key={`base-${slideshow.currentIndex}`}
-        />
-      </div>
-
-      {/* Overlay image - fades in */}
-      <div className="absolute inset-0 fade-out-image">
-        <Image
-          src={slideshow.images[nextIndex]}
-          alt="Next image"
-          fill
-          className="object-cover"
-          priority
-          key={`overlay-${nextIndex}`}
         />
       </div>
 
@@ -99,14 +81,9 @@ export function ImageSlideshow() {
         <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2 z-10">
           {slideshow.images.map((_, index) => (
             <button
-              key={index}
-              onClick={() => {
-                setSlideshow({
-                  images: slideshow.images,
-                  currentIndex: index,
-                })
-              }}
-              className={`w-2 h-2 rounded-full transition-all ${
+              key={`dot-${index}`}
+              onClick={() => handleDotClick(index)}
+              className={`w-2 h-2 rounded-full transition-all duration-300 ${
                 index === slideshow.currentIndex
                   ? 'bg-white w-6'
                   : 'bg-gray-400 hover:bg-gray-300'
