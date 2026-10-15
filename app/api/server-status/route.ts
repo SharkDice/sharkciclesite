@@ -18,6 +18,18 @@ export async function GET(request: NextRequest) {
       motd = serverStatus.motd.clean.split('\n')[0].trim() || 'Welcome to Sharkcicle SMP!'
     }
 
+    // Extract version number - get the last part after the dash
+    let version = 'Unknown'
+    if (serverStatus.version?.name) {
+      // Extract version like "26.1.2" from "Velocity 1.7.2-26.1.2"
+      const versionMatch = serverStatus.version.name.match(/(\d+\.\d+\.\d+)$/)
+      if (versionMatch) {
+        version = `Minecraft ${versionMatch[1]}`
+      } else {
+        version = serverStatus.version.name
+      }
+    }
+
     // Format the response
     const response = {
       online: true,
@@ -26,7 +38,7 @@ export async function GET(request: NextRequest) {
         max: serverStatus.players?.max || 0,
       },
       motd: motd,
-      version: serverStatus.version?.name || 'Unknown',
+      version: version,
       favicon: serverStatus.favicon || null,
     }
 
