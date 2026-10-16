@@ -40,8 +40,11 @@ export function ImageSlideshow() {
       setTimeout(() => {
         setCurrentIndex((prev) => (prev + 1) % images.length)
         setNextIndex((prev) => (prev + 1) % images.length)
-        setOpacity(1)
       }, FADE_DURATION)
+      
+      setTimeout(() => {
+        setOpacity(1)
+      }, FADE_DURATION + 50)
     }, SLIDE_DISPLAY_DURATION)
 
     return () => clearInterval(interval)
