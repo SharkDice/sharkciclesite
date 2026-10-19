@@ -9,6 +9,7 @@ interface ServerStatus {
   players: {
     online: number
     max: number
+    names?: string[]
   }
   motd: string
   version: string
@@ -19,7 +20,7 @@ interface ServerStatus {
 export function ServerStatus() {
   const [status, setStatus] = useState<ServerStatus>({
     online: false,
-    players: { online: 0, max: 0 },
+    players: { online: 0, max: 0, names: [] },
     motd: '',
     version: '',
     loading: true,
@@ -44,6 +45,7 @@ export function ServerStatus() {
             players: {
               online: data.players?.online || 0,
               max: data.players?.max || 0,
+              names: data.players?.names || [],
             },
             motd: data.motd?.clean?.[0] || 'Welcome to Sharkcicle SMP!',
             version: data.version || 'Unknown',
@@ -54,7 +56,7 @@ export function ServerStatus() {
           setStatus((prev) => ({
             ...prev,
             online: false,
-            players: { online: 0, max: 0 },
+            players: { online: 0, max: 0, names: [] },
             motd: data.motd || 'Server status unavailable',
             version: '',
             loading: false,
@@ -90,6 +92,7 @@ export function ServerStatus() {
           players: {
             online: data.players?.online || 0,
             max: data.players?.max || 0,
+            names: data.players?.names || [],
           },
           motd: data.motd?.clean?.[0] || 'Welcome to Sharkcicle SMP!',
           version: data.version || 'Unknown',
@@ -100,7 +103,7 @@ export function ServerStatus() {
         setStatus((prev) => ({
           ...prev,
           online: false,
-          players: { online: 0, max: 0 },
+          players: { online: 0, max: 0, names: [] },
           motd: data.motd || 'Server status unavailable',
           version: '',
           loading: false,
@@ -173,6 +176,22 @@ export function ServerStatus() {
                 }}
               />
             </div>
+
+            {status.players.names && status.players.names.length > 0 && (
+              <div className="pt-2">
+                <p className="text-sm text-gray-400 mb-2">Online Players</p>
+                <div className="flex flex-wrap gap-2">
+                  {status.players.names.map((name) => (
+                    <span
+                      key={name}
+                      className="px-3 py-1 bg-blue-900 bg-opacity-40 border border-blue-500 text-blue-200 rounded-full text-sm"
+                    >
+                      {name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {status.motd && (
               <div className="pt-2">

@@ -30,12 +30,16 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Extract player names from the sample
+    const playerNames = serverStatus.players?.sample?.map((player: any) => player.name) || []
+
     // Format the response
     const response = {
       online: true,
       players: {
         online: serverStatus.players?.online || 0,
         max: serverStatus.players?.max || 0,
+        names: playerNames,
       },
       motd: motd,
       version: version,
