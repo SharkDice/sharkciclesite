@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { DiscIcon as Discord, Map, Book, LucideImage } from "lucide-react"
+import { DiscIcon as Discord, Map, Book, LucideImage, BarChart3 } from "lucide-react"
 
 interface NavigationProps {
   className?: string
@@ -21,6 +21,12 @@ export function Navigation({ className }: NavigationProps) {
       href: "https://wiki.sharkcicle.com",
       icon: <Book className="h-5 w-5" />,
       external: true,
+    },
+    {
+      name: "Statistics",
+      href: "/statistics",
+      icon: <BarChart3 className="h-5 w-5" />,
+      external: false,
     },
     {
       name: "Discord",
