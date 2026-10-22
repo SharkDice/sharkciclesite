@@ -183,6 +183,8 @@ function BuilderCard({ builder, rank }: { builder: BuilderStats; rank: number })
     </Card>
   )
 }
+
+export function CoreProtectStats() {
   const [stats, setStats] = useState<StatsData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
