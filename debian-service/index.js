@@ -70,14 +70,14 @@ if (!isMainThread) {
         materials.set(m.id, m.material.replace(/^minecraft:/, ''));
       }
 
-      // action = 0 is "block broken" in CoreProtect (1 = placed)
-      const rows = db
+      // action = 0 is "block broken" in CoreProtect, 1 is "placed"
+      const brokenRows = db
         .prepare('SELECT user, type, COUNT(*) AS c FROM co_block WHERE rowid >= ? AND action = 0 GROUP BY user, type')
         .all(blockStart);
-      console.log(`  [worker] grouped block rows: ${rows.length} (${((Date.now() - workerStart) / 1000).toFixed(1)}s in)`);
+      console.log(`  [worker] grouped block rows (broken): ${brokenRows.length} (${((Date.now() - workerStart) / 1000).toFixed(1)}s in)`);
 
       const byPlayer = new Map();
-      for (const r of rows) {
+      for (const r of brokenRows) {
         const name = names.get(r.user);
         if (!name) continue; // not a real player
         let p = byPlayer.get(name);
@@ -100,6 +100,40 @@ if (!isMainThread) {
       }
     }
 
+    // Now process blocks placed (action = 1) for top builders
+    let totalBlocksPlaced = 0;
+    const builders = [];
+
+    if (blockStart != null) {
+      const placedRows = db
+        .prepare('SELECT user, type, COUNT(*) AS c FROM co_block WHERE rowid >= ? AND action = 1 GROUP BY user, type')
+        .all(blockStart);
+      console.log(`  [worker] grouped block rows (placed): ${placedRows.length} (${((Date.now() - workerStart) / 1000).toFixed(1)}s in)`);
+
+      const byBuilderMap = new Map();
+      for (const r of placedRows) {
+        const name = names.get(r.user);
+        if (!name) continue; // not a real player
+        let b = byBuilderMap.get(name);
+        if (!b) {
+          b = { name, totalPlaced: 0, blocks: [] };
+          byBuilderMap.set(name, b);
+        }
+        b.totalPlaced += r.c;
+        b.blocks.push({ material: materials.get(r.type) || 'unknown', count: r.c });
+      }
+
+      const allBuilders = [...byBuilderMap.values()].sort((a, b) => b.totalPlaced - a.totalPlaced);
+      totalBlocksPlaced = allBuilders.reduce((sum, b) => sum + b.totalPlaced, 0);
+
+      for (const b of allBuilders.slice(0, workerData.maxPlayers)) {
+        b.blocks.sort((a, b) => b.count - a.count);
+        b.blocks = b.blocks.slice(0, workerData.topBlocks);
+        b.otherCount = b.totalPlaced - b.blocks.reduce((sum, bl) => sum + bl.count, 0);
+        builders.push(b);
+      }
+    }
+
     const chatStart = firstRowidSince(db, 'co_chat', since);
     if (chatStart != null) {
       totalChat = db
@@ -108,7 +142,7 @@ if (!isMainThread) {
     }
 
     db.close();
-    parentPort.postMessage({ ok: true, totalBlocks, totalChat, players });
+    parentPort.postMessage({ ok: true, totalBlocks, totalBlocksPlaced, totalChat, players, builders });
   } catch (err) {
     parentPort.postMessage({ ok: false, error: err.message });
   }
@@ -176,9 +210,11 @@ function updateCache() {
       timestamp: new Date().toISOString(),
       data: {
         totalBlocksBroken: m.totalBlocks,
+        totalBlocksPlaced: m.totalBlocksPlaced,
         totalChatMessages: m.totalChat,
         topBlocks: TOP_BLOCKS,
         players: m.players,
+        builders: m.builders,
       },
     };
     try {

@@ -17,15 +17,24 @@ interface PlayerStats {
   otherCount: number
 }
 
+interface BuilderStats {
+  name: string
+  totalPlaced: number
+  blocks: BlockCount[]
+  otherCount: number
+}
+
 interface StatsData {
   success: boolean
   period?: string
   timestamp?: string
   data?: {
     totalBlocksBroken: number
+    totalBlocksPlaced: number
     totalChatMessages: number
     topBlocks: number
     players: PlayerStats[]
+    builders: BuilderStats[]
   }
   error?: string
 }
@@ -110,7 +119,70 @@ function PlayerCard({ player, rank }: { player: PlayerStats; rank: number }) {
   )
 }
 
-export function CoreProtectStats() {
+function BuilderCard({ builder, rank }: { builder: BuilderStats; rank: number }) {
+  const rankStyle = RANK_STYLES[rank - 1] ?? 'bg-muted text-muted-foreground'
+
+  return (
+    <Card className="overflow-hidden">
+      <CardHeader className="pb-3">
+        <div className="flex items-center gap-3">
+          <div className="relative shrink-0">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={`https://minotar.net/avatar/${encodeURIComponent(builder.name)}/48`}
+              alt=""
+              width={48}
+              height={48}
+              className="rounded-md"
+              loading="lazy"
+              onError={(e) => {
+                const img = e.currentTarget
+                if (!img.dataset.fallback) {
+                  img.dataset.fallback = '1'
+                  img.src = `https://mc-heads.net/avatar/${encodeURIComponent(builder.name)}/48`
+                }
+              }}
+            />
+            <span
+              className={`absolute -top-2 -left-2 flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold shadow ${rankStyle}`}
+            >
+              {rank}
+            </span>
+          </div>
+          <div className="min-w-0">
+            <CardTitle className="truncate text-lg">{builder.name}</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              <span className="font-semibold text-foreground">{builder.totalPlaced.toLocaleString()}</span> blocks placed
+            </p>
+          </div>
+        </div>
+      </CardHeader>
+
+      <CardContent className="space-y-3">
+        {builder.blocks.map((block) => {
+            const pct = Math.max(2, (block.count / builder.totalPlaced) * 100)
+            return (
+              <div key={block.material} className="space-y-1">
+                <div className="flex items-baseline justify-between text-sm">
+                  <span className="truncate pr-2">{formatMaterial(block.material)}</span>
+                  <span className="shrink-0 font-medium tabular-nums">{block.count.toLocaleString()}</span>
+                </div>
+                <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                  <div className="h-full rounded-full bg-green-500" style={{ width: `${pct}%` }} />
+                </div>
+              </div>
+            )
+          })}
+
+        {builder.otherCount > 0 && (
+          <p className="border-t pt-2 text-xs text-muted-foreground">
+            + {builder.otherCount.toLocaleString()} other blocks
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
   const [stats, setStats] = useState<StatsData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -144,6 +216,7 @@ export function CoreProtectStats() {
   }, [])
 
   const players = stats?.data?.players ?? []
+  const builders = stats?.data?.builders ?? []
   const topBlocks = stats?.data?.topBlocks ?? 3
 
   return (
@@ -179,7 +252,7 @@ export function CoreProtectStats() {
       {stats?.data ? (
         <>
           {/* Server totals */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Blocks Broken</CardTitle>
@@ -187,6 +260,17 @@ export function CoreProtectStats() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{stats.data.totalBlocksBroken.toLocaleString()}</div>
+                <p className="text-xs text-muted-foreground">By players in the last 7 days</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Blocks Placed</CardTitle>
+                <Pickaxe className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats.data.totalBlocksPlaced?.toLocaleString() ?? 0}</div>
                 <p className="text-xs text-muted-foreground">By players in the last 7 days</p>
               </CardContent>
             </Card>
@@ -223,6 +307,31 @@ export function CoreProtectStats() {
               <Card>
                 <CardContent className="py-12">
                   <p className="text-center text-gray-500">No blocks have been broken in the last 7 days.</p>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+
+          {/* Per-builder breakdown */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Trophy className="h-5 w-5 text-green-500" />
+              <h2 className="text-xl font-semibold">Top Builders</h2>
+              <span className="text-sm text-muted-foreground">
+                (top {stats.data.builders?.length ?? 0} builders, their {topBlocks} most-placed blocks)
+              </span>
+            </div>
+
+            {stats.data.builders && stats.data.builders.length > 0 ? (
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                {stats.data.builders.map((builder, i) => (
+                  <BuilderCard key={builder.name} builder={builder} rank={i + 1} />
+                ))}
+              </div>
+            ) : (
+              <Card>
+                <CardContent className="py-12">
+                  <p className="text-center text-gray-500">No blocks have been placed in the last 7 days.</p>
                 </CardContent>
               </Card>
             )}
