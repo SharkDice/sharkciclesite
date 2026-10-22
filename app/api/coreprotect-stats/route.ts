@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
+export const revalidate = 0 // Disable all caching
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,6 +15,7 @@ export async function GET(request: NextRequest) {
       },
       // Set a timeout so we don't hang forever
       signal: AbortSignal.timeout(5000), // 5 second timeout
+      cache: 'no-store', // Disable fetch caching
     })
 
     if (!response.ok) {
@@ -24,7 +26,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(data, {
       headers: {
-        'Cache-Control': 'public, max-age=60',
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
       }
     })
   } catch (error) {
