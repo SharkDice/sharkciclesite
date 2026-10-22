@@ -1,21 +1,111 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { AlertCircle, RefreshCw, Pickaxe, MessageSquare, Users } from 'lucide-react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { AlertCircle, RefreshCw, Pickaxe, MessageSquare, Trophy } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+
+interface BlockCount {
+  material: string
+  count: number
+}
+
+interface PlayerStats {
+  name: string
+  totalBroken: number
+  blocks: BlockCount[]
+  otherCount: number
+}
 
 interface StatsData {
   success: boolean
   period?: string
   timestamp?: string
-  cachedAt?: string
   data?: {
     totalBlocksBroken: number
     totalChatMessages: number
-    uniquePlayers: number
+    minBlockCount: number
+    players: PlayerStats[]
   }
   error?: string
+}
+
+// "deepslate_iron_ore" -> "Deepslate Iron Ore"
+function formatMaterial(material: string) {
+  return material
+    .split('_')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ')
+}
+
+const RANK_STYLES = [
+  'bg-yellow-400 text-yellow-950', // 1st
+  'bg-gray-300 text-gray-800', // 2nd
+  'bg-amber-600 text-amber-50', // 3rd
+]
+
+function PlayerCard({ player, rank, minBlockCount }: { player: PlayerStats; rank: number; minBlockCount: number }) {
+  const rankStyle = RANK_STYLES[rank - 1] ?? 'bg-muted text-muted-foreground'
+
+  return (
+    <Card className="overflow-hidden">
+      <CardHeader className="pb-3">
+        <div className="flex items-center gap-3">
+          <div className="relative shrink-0">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={`https://minotar.net/avatar/${encodeURIComponent(player.name)}/48`}
+              alt=""
+              width={48}
+              height={48}
+              className="rounded-md"
+              loading="lazy"
+            />
+            <span
+              className={`absolute -top-2 -left-2 flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold shadow ${rankStyle}`}
+            >
+              {rank}
+            </span>
+          </div>
+          <div className="min-w-0">
+            <CardTitle className="truncate text-lg">{player.name}</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              <span className="font-semibold text-foreground">{player.totalBroken.toLocaleString()}</span> blocks broken
+            </p>
+          </div>
+        </div>
+      </CardHeader>
+
+      <CardContent className="space-y-3">
+        {player.blocks.length > 0 ? (
+          player.blocks.map((block) => {
+            const pct = Math.max(2, (block.count / player.totalBroken) * 100)
+            return (
+              <div key={block.material} className="space-y-1">
+                <div className="flex items-baseline justify-between text-sm">
+                  <span className="truncate pr-2">{formatMaterial(block.material)}</span>
+                  <span className="shrink-0 font-medium tabular-nums">{block.count.toLocaleString()}</span>
+                </div>
+                <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                  <div className="h-full rounded-full bg-blue-500" style={{ width: `${pct}%` }} />
+                </div>
+              </div>
+            )
+          })
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            No single block type reached {minBlockCount.toLocaleString()}.
+          </p>
+        )}
+
+        {player.blocks.length > 0 && player.otherCount > 0 && (
+          <p className="border-t pt-2 text-xs text-muted-foreground">
+            + {player.otherCount.toLocaleString()} other blocks (under {minBlockCount.toLocaleString()} each)
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  )
 }
 
 export function CoreProtectStats() {
@@ -46,14 +136,13 @@ export function CoreProtectStats() {
   }
 
   useEffect(() => {
-    // Fetch immediately on mount
     fetchStats()
-
-    // Set up interval to refresh every 60 seconds
     const interval = setInterval(fetchStats, 60000)
-
     return () => clearInterval(interval)
   }, [])
+
+  const players = stats?.data?.players ?? []
+  const minBlockCount = stats?.data?.minBlockCount ?? 500
 
   return (
     <div className="space-y-6">
@@ -82,62 +171,61 @@ export function CoreProtectStats() {
       )}
 
       {lastUpdated && (
-        <p className="text-sm text-gray-500">
-          Last updated: {lastUpdated.toLocaleTimeString()}
-          {stats?.cachedAt && ` (Cached at ${stats.cachedAt})`}
-        </p>
+        <p className="text-sm text-gray-500">Last updated: {lastUpdated.toLocaleTimeString()}</p>
       )}
 
       {stats?.data ? (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Blocks Broken Card */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Blocks Broken</CardTitle>
-              <Pickaxe className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {stats.data.totalBlocksBroken.toLocaleString()}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Total in the last 7 days
-              </p>
-            </CardContent>
-          </Card>
+        <>
+          {/* Server totals */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Blocks Broken</CardTitle>
+                <Pickaxe className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats.data.totalBlocksBroken.toLocaleString()}</div>
+                <p className="text-xs text-muted-foreground">By players in the last 7 days</p>
+              </CardContent>
+            </Card>
 
-          {/* Chat Messages Card */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Chat Messages</CardTitle>
-              <MessageSquare className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {stats.data.totalChatMessages.toLocaleString()}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Messages sent in the last 7 days
-              </p>
-            </CardContent>
-          </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Chat Messages</CardTitle>
+                <MessageSquare className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats.data.totalChatMessages.toLocaleString()}</div>
+                <p className="text-xs text-muted-foreground">Messages sent in the last 7 days</p>
+              </CardContent>
+            </Card>
+          </div>
 
-          {/* Active Players Card */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Active Players</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {stats.data.uniquePlayers}
+          {/* Per-player breakdown */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Trophy className="h-5 w-5 text-yellow-500" />
+              <h2 className="text-xl font-semibold">Top Miners</h2>
+              <span className="text-sm text-muted-foreground">
+                (blocks with {minBlockCount.toLocaleString()}+ broken are listed)
+              </span>
+            </div>
+
+            {players.length > 0 ? (
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                {players.map((player, i) => (
+                  <PlayerCard key={player.name} player={player} rank={i + 1} minBlockCount={minBlockCount} />
+                ))}
               </div>
-              <p className="text-xs text-muted-foreground">
-                Unique players in the last 7 days
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+            ) : (
+              <Card>
+                <CardContent className="py-12">
+                  <p className="text-center text-gray-500">No blocks have been broken in the last 7 days.</p>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </>
       ) : loading ? (
         <Card>
           <CardContent className="py-12">
