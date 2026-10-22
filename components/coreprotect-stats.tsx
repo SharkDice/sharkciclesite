@@ -24,7 +24,7 @@ interface StatsData {
   data?: {
     totalBlocksBroken: number
     totalChatMessages: number
-    minBlockCount: number
+    topBlocks: number
     players: PlayerStats[]
   }
   error?: string
@@ -44,7 +44,7 @@ const RANK_STYLES = [
   'bg-amber-600 text-amber-50', // 3rd
 ]
 
-function PlayerCard({ player, rank, minBlockCount }: { player: PlayerStats; rank: number; minBlockCount: number }) {
+function PlayerCard({ player, rank }: { player: PlayerStats; rank: number }) {
   const rankStyle = RANK_STYLES[rank - 1] ?? 'bg-muted text-muted-foreground'
 
   return (
@@ -60,6 +60,14 @@ function PlayerCard({ player, rank, minBlockCount }: { player: PlayerStats; rank
               height={48}
               className="rounded-md"
               loading="lazy"
+              onError={(e) => {
+                // If the first skin service is down, fall back to a second one (once)
+                const img = e.currentTarget
+                if (!img.dataset.fallback) {
+                  img.dataset.fallback = '1'
+                  img.src = `https://mc-heads.net/avatar/${encodeURIComponent(player.name)}/48`
+                }
+              }}
             />
             <span
               className={`absolute -top-2 -left-2 flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold shadow ${rankStyle}`}
@@ -77,8 +85,7 @@ function PlayerCard({ player, rank, minBlockCount }: { player: PlayerStats; rank
       </CardHeader>
 
       <CardContent className="space-y-3">
-        {player.blocks.length > 0 ? (
-          player.blocks.map((block) => {
+        {player.blocks.map((block) => {
             const pct = Math.max(2, (block.count / player.totalBroken) * 100)
             return (
               <div key={block.material} className="space-y-1">
@@ -91,16 +98,11 @@ function PlayerCard({ player, rank, minBlockCount }: { player: PlayerStats; rank
                 </div>
               </div>
             )
-          })
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            No single block type reached {minBlockCount.toLocaleString()}.
-          </p>
-        )}
+          })}
 
-        {player.blocks.length > 0 && player.otherCount > 0 && (
+        {player.otherCount > 0 && (
           <p className="border-t pt-2 text-xs text-muted-foreground">
-            + {player.otherCount.toLocaleString()} other blocks (under {minBlockCount.toLocaleString()} each)
+            + {player.otherCount.toLocaleString()} other blocks
           </p>
         )}
       </CardContent>
@@ -142,7 +144,7 @@ export function CoreProtectStats() {
   }, [])
 
   const players = stats?.data?.players ?? []
-  const minBlockCount = stats?.data?.minBlockCount ?? 500
+  const topBlocks = stats?.data?.topBlocks ?? 3
 
   return (
     <div className="space-y-6">
@@ -207,14 +209,14 @@ export function CoreProtectStats() {
               <Trophy className="h-5 w-5 text-yellow-500" />
               <h2 className="text-xl font-semibold">Top Miners</h2>
               <span className="text-sm text-muted-foreground">
-                (blocks with {minBlockCount.toLocaleString()}+ broken are listed)
+                (top {players.length} players, their {topBlocks} most-broken blocks)
               </span>
             </div>
 
             {players.length > 0 ? (
               <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
                 {players.map((player, i) => (
-                  <PlayerCard key={player.name} player={player} rank={i + 1} minBlockCount={minBlockCount} />
+                  <PlayerCard key={player.name} player={player} rank={i + 1} />
                 ))}
               </div>
             ) : (
