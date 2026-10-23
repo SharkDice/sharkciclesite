@@ -54,7 +54,9 @@ if (!isMainThread) {
 
     let totalChat = 0;
     let totalBlocks = 0;
+    let totalBlocksPlaced = 0;
     const players = [];
+    const builders = [];
 
     const blockStart = firstRowidSince(db, 'co_block', since);
     if (blockStart != null) {
@@ -98,13 +100,8 @@ if (!isMainThread) {
         p.otherCount = p.totalBroken - p.blocks.reduce((sum, b) => sum + b.count, 0);
         players.push(p);
       }
-    }
 
-    // Now process blocks placed (action = 1) for top builders
-    let totalBlocksPlaced = 0;
-    const builders = [];
-
-    if (blockStart != null) {
+      // Now process blocks placed (action = 1) for top builders
       const placedRows = db
         .prepare('SELECT user, type, COUNT(*) AS c FROM co_block WHERE rowid >= ? AND action = 1 GROUP BY user, type')
         .all(blockStart);
@@ -156,6 +153,7 @@ const express = require('express');
 const cors = require('cors');
 
 const app = express();
+const statsDb = new Database(path.join(__dirname, 'stats.db'), { readonly: true, fileMustExist: true });
 app.use(cors()); // tighten to your domain later: cors({ origin: 'https://sharkcicle.com' })
 app.use(express.json());
 
@@ -245,6 +243,61 @@ app.get('/stats', (req, res) => {
   }
   res.setHeader('Cache-Control', 'public, max-age=60');
   res.json(cachedStats);
+});
+
+/* ---------------- Lifetime lookup (reads stats.db) ---------------- */
+app.get('/players', (req, res) => {
+  const rows = statsDb.prepare('SELECT name FROM users ORDER BY name COLLATE NOCASE').all();
+  res.json({ success: true, players: rows.map((r) => r.name) });
+});
+
+app.get('/materials', (req, res) => {
+  const rows = statsDb.prepare('SELECT name FROM materials ORDER BY name').all();
+  res.json({ success: true, materials: rows.map((r) => r.name) });
+});
+
+// sort=total (default) ranks by broken+placed combined; sort=broken or sort=placed
+// ranks by just that column, e.g. "who PLACED the most stone" is block=stone&sort=placed
+const LOOKUP_SORTS = {
+  total: 'broken + placed DESC',
+  broken: 'broken DESC',
+  placed: 'placed DESC',
+};
+
+app.get('/lookup', (req, res) => {
+  const player = (req.query.player || '').toString().trim();
+  const block = (req.query.block || '').toString().trim();
+  if (!player && !block) {
+    return res.status(400).json({ success: false, error: 'Provide a player and/or a block' });
+  }
+  const limit = Math.min(Number(req.query.limit) || 100, 500);
+  const offset = Math.max(Number(req.query.offset) || 0, 0);
+  const orderBy = LOOKUP_SORTS[(req.query.sort || 'total').toString()] || LOOKUP_SORTS.total;
+
+  const where = [];
+  const params = [];
+  if (player) { where.push('u.name = ? COLLATE NOCASE'); params.push(player); }
+  if (block) { where.push('m.name = ?'); params.push(block.toLowerCase().replace(/ /g, '_')); }
+
+  try {
+    const rows = statsDb.prepare(`
+      SELECT u.name AS player, m.name AS block,
+             SUM(CASE WHEN b.action = 0 THEN b.count ELSE 0 END) AS broken,
+             SUM(CASE WHEN b.action = 1 THEN b.count ELSE 0 END) AS placed
+      FROM block_stats b
+      JOIN users u ON u.id = b.user_id
+      JOIN materials m ON m.id = b.material_id
+      WHERE ${where.join(' AND ')}
+      GROUP BY b.user_id, b.material_id
+      ORDER BY ${orderBy}
+      LIMIT ? OFFSET ?
+    `).all(...params, limit + 1, offset);
+
+    res.setHeader('Cache-Control', 'public, max-age=60');
+    res.json({ success: true, hasMore: rows.length > limit, rows: rows.slice(0, limit) });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
 });
 
 app.use((err, req, res, next) => {
