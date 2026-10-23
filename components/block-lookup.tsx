@@ -167,6 +167,7 @@ export function BlockLookup() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b text-left text-muted-foreground">
+                  <th className="py-2 pr-4 font-medium">#</th>
                   <th className="py-2 pr-4 font-medium">Player</th>
                   <th className="py-2 pr-4 font-medium">Block</th>
                   <th className="py-2 pr-4 text-right font-medium">Broken</th>
@@ -174,8 +175,9 @@ export function BlockLookup() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r) => (
+                {rows.map((r, i) => (
                   <tr key={`${r.player}-${r.block}`} className="border-b last:border-0">
+                    <td className="py-2 pr-4 text-muted-foreground tabular-nums">{i + 1}</td>
                     <td className="py-2 pr-4">{r.player}</td>
                     <td className="py-2 pr-4">{formatMaterial(r.block)}</td>
                     <td className="py-2 pr-4 text-right tabular-nums">{r.broken.toLocaleString()}</td>
