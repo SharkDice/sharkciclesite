@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { AlertCircle, Search } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -13,12 +13,116 @@ interface LookupRow {
 }
 
 const PAGE_SIZE = 100
+const MC_ASSETS_VERSION = '1.21.1'
+const MC_ASSETS_BASE = `https://cdn.jsdelivr.net/gh/InventivetalentDev/minecraft-assets@${MC_ASSETS_VERSION}/assets/minecraft/textures`
+
+// Liquids are stored as a tall vertical filmstrip of animation frames, not a single
+// square texture - rendered separately below by cropping to just the first frame.
+const LIQUID_TEXTURES: Record<string, string> = {
+  water: 'water_still',
+  flowing_water: 'water_still',
+  lava: 'lava_still',
+  flowing_lava: 'lava_still',
+}
+
+// Hand-verified fixes for materials whose CoreProtect/vanilla id doesn't match any
+// single texture filename (e.g. multi-face blocks, renamed blocks, crop growth stages).
+const ICON_ALIASES: Record<string, string> = {
+  grass_block: 'grass_block_top',
+  podzol: 'podzol_top',
+  mycelium: 'mycelium_top',
+  quartz_block: 'quartz_block_top',
+  tnt: 'tnt_top',
+  scaffolding: 'scaffolding_top',
+  grass: 'short_grass',
+  potatoes: 'potatoes_stage3',
+  carrots: 'carrots_stage3',
+  beetroots: 'beetroots_stage3',
+  wheat: 'wheat_stage7',
+  nether_wart: 'nether_wart_stage2',
+  redstone_wire: 'redstone_dust_dot',
+  smooth_sandstone: 'sandstone_top',
+  smooth_quartz: 'quartz_block_bottom',
+}
+
+// Generic rules for structural variants that reuse another block's texture
+// (wood "all bark" variants, carpets, slabs/stairs/walls/etc.). Each candidate is
+// attempted in order until one resolves to a real texture.
+function suffixCandidates(material: string): string[] {
+  const out: string[] = []
+  if (material.endsWith('_wood')) out.push(material.replace(/_wood$/, '_log'))
+  if (material.endsWith('_carpet')) out.push(material.replace(/_carpet$/, '_wool'))
+
+  const shapeMatch = material.match(
+    /^(.*)_(slab|stairs|wall|fence_gate|fence|pressure_plate|button|door|trapdoor)$/
+  )
+  if (shapeMatch) {
+    const base = shapeMatch[1]
+    out.push(`${base}_planks`, base, `${base}s`)
+  }
+  return out
+}
+
+function blockTextureCandidates(material: string): string[] {
+  const candidates = [ICON_ALIASES[material] ?? material, ...suffixCandidates(material), material]
+  return Array.from(new Set(candidates))
+}
 
 function formatMaterial(material: string) {
   return material
     .split('_')
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(' ')
+}
+
+function BlockIcon({ material }: { material: string }) {
+  const liquid = LIQUID_TEXTURES[material]
+  const candidates = useMemo(() => blockTextureCandidates(material), [material])
+  // 0..candidates.length-1 tries each block-texture candidate, candidates.length
+  // tries the item-texture folder, anything past that means give up and hide.
+  const [stage, setStage] = useState(0)
+
+  useEffect(() => setStage(0), [material])
+
+  if (liquid) {
+    // Crop the animated filmstrip texture down to just its first frame via a
+    // scaled background image, instead of a plain <img>.
+    return (
+      <span
+        aria-hidden="true"
+        className="inline-block shrink-0"
+        style={{
+          width: 20,
+          height: 20,
+          backgroundImage: `url(${MC_ASSETS_BASE}/block/${liquid}.png)`,
+          backgroundSize: '100% auto',
+          backgroundPosition: 'top',
+          imageRendering: 'pixelated',
+        }}
+      />
+    )
+  }
+
+  if (stage > candidates.length) return null
+
+  const src =
+    stage < candidates.length
+      ? `${MC_ASSETS_BASE}/block/${candidates[stage]}.png`
+      : `${MC_ASSETS_BASE}/item/${material}.png`
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt=""
+      width={20}
+      height={20}
+      className="inline-block shrink-0"
+      style={{ imageRendering: 'pixelated' }}
+      loading="lazy"
+      onError={() => setStage((s) => s + 1)}
+    />
+  )
 }
 
 type SortOption = 'total' | 'broken' | 'placed'
@@ -39,6 +143,7 @@ export function BlockLookup() {
   const [hasMore, setHasMore] = useState(false)
   const [loading, setLoading] = useState(false)
   const [searched, setSearched] = useState(false)
+  const [overview, setOverview] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -54,10 +159,7 @@ export function BlockLookup() {
   }, [])
 
   const search = async (append = false) => {
-    if (!player.trim() && !block.trim()) {
-      setError('Enter a player name and/or a block to search.')
-      return
-    }
+    const isOverview = !player.trim() && !block.trim()
     try {
       setLoading(true)
       setError(null)
@@ -76,6 +178,7 @@ export function BlockLookup() {
       setRows(append ? [...rows, ...data.rows] : data.rows)
       setHasMore(data.hasMore)
       setSearched(true)
+      setOverview(isOverview)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Lookup failed')
     } finally {
@@ -91,7 +194,8 @@ export function BlockLookup() {
       <CardHeader>
         <CardTitle>Block Lookup</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Lifetime blocks broken and placed. Search by player, by block, or both.
+          Lifetime blocks broken and placed. Search by player, by block, or both -
+          leave both blank to see the top blocks overall.
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -163,29 +267,41 @@ export function BlockLookup() {
         )}
 
         {rows.length > 0 && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b text-left text-muted-foreground">
-                  <th className="py-2 pr-4 font-medium">#</th>
-                  <th className="py-2 pr-4 font-medium">Player</th>
-                  <th className="py-2 pr-4 font-medium">Block</th>
-                  <th className="py-2 pr-4 text-right font-medium">Broken</th>
-                  <th className="py-2 text-right font-medium">Placed</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r, i) => (
-                  <tr key={`${r.player}-${r.block}`} className="border-b last:border-0">
-                    <td className="py-2 pr-4 text-muted-foreground tabular-nums">{i + 1}</td>
-                    <td className="py-2 pr-4">{r.player}</td>
-                    <td className="py-2 pr-4">{formatMaterial(r.block)}</td>
-                    <td className="py-2 pr-4 text-right tabular-nums">{r.broken.toLocaleString()}</td>
-                    <td className="py-2 text-right tabular-nums">{r.placed.toLocaleString()}</td>
+          <div className="space-y-2">
+            {overview && (
+              <p className="text-sm text-muted-foreground">
+                Top blocks overall by {SORT_LABELS[sort].toLowerCase()} - player shown is the top contributor.
+              </p>
+            )}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left text-muted-foreground">
+                    <th className="py-2 pr-4 font-medium">#</th>
+                    <th className="py-2 pr-4 font-medium">{overview ? 'Top player' : 'Player'}</th>
+                    <th className="py-2 pr-4 font-medium">Block</th>
+                    <th className="py-2 pr-4 text-right font-medium">Broken</th>
+                    <th className="py-2 text-right font-medium">Placed</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {rows.map((r, i) => (
+                    <tr key={`${r.player}-${r.block}`} className="border-b last:border-0">
+                      <td className="py-2 pr-4 text-muted-foreground tabular-nums">{i + 1}</td>
+                      <td className="py-2 pr-4">{r.player}</td>
+                      <td className="py-2 pr-4">
+                        <span className="flex items-center gap-2">
+                          <BlockIcon material={r.block} />
+                          {formatMaterial(r.block)}
+                        </span>
+                      </td>
+                      <td className="py-2 pr-4 text-right tabular-nums">{r.broken.toLocaleString()}</td>
+                      <td className="py-2 text-right tabular-nums">{r.placed.toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 

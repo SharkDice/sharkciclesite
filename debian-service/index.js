@@ -264,16 +264,68 @@ const LOOKUP_SORTS = {
   placed: 'placed DESC',
 };
 
+// When no player/block filter is given, rank materials overall instead (by their
+// community-wide total), and report whichever single player contributed the most
+// towards that same metric for each material.
+const OVERVIEW_RANK_METRIC = {
+  total: 'broken + placed',
+  broken: 'broken',
+  placed: 'placed',
+};
+const OVERVIEW_TOTAL_METRIC = {
+  total: 't.broken + t.placed',
+  broken: 't.broken',
+  placed: 't.placed',
+};
+
 app.get('/lookup', (req, res) => {
   const player = (req.query.player || '').toString().trim();
   const block = (req.query.block || '').toString().trim();
-  if (!player && !block) {
-    return res.status(400).json({ success: false, error: 'Provide a player and/or a block' });
-  }
   const limit = Math.min(Number(req.query.limit) || 100, 500);
   const offset = Math.max(Number(req.query.offset) || 0, 0);
-  const orderBy = LOOKUP_SORTS[(req.query.sort || 'total').toString()] || LOOKUP_SORTS.total;
+  const sortKey = ['total', 'broken', 'placed'].includes((req.query.sort || '').toString())
+    ? req.query.sort.toString()
+    : 'total';
 
+  // No filters: "top blocks broken/placed overall, and by who" - rank materials by
+  // their community-wide total and surface the top contributing player per material.
+  if (!player && !block) {
+    try {
+      const rows = statsDb.prepare(`
+        WITH user_totals AS (
+          SELECT material_id, user_id,
+                 SUM(CASE WHEN action = 0 THEN count ELSE 0 END) AS broken,
+                 SUM(CASE WHEN action = 1 THEN count ELSE 0 END) AS placed
+          FROM block_stats
+          GROUP BY material_id, user_id
+        ),
+        totals AS (
+          SELECT material_id, SUM(broken) AS broken, SUM(placed) AS placed
+          FROM user_totals
+          GROUP BY material_id
+        ),
+        ranked AS (
+          SELECT material_id, user_id, broken, placed,
+                 ROW_NUMBER() OVER (PARTITION BY material_id ORDER BY ${OVERVIEW_RANK_METRIC[sortKey]} DESC) AS rn
+          FROM user_totals
+        )
+        SELECT m.name AS block, t.broken AS broken, t.placed AS placed, u.name AS player
+        FROM totals t
+        JOIN materials m ON m.id = t.material_id
+        LEFT JOIN ranked r ON r.material_id = t.material_id AND r.rn = 1
+        LEFT JOIN users u ON u.id = r.user_id
+        ORDER BY ${OVERVIEW_TOTAL_METRIC[sortKey]} DESC
+        LIMIT ? OFFSET ?
+      `).all(limit + 1, offset);
+
+      res.setHeader('Cache-Control', 'public, max-age=60');
+      return res.json({ success: true, hasMore: rows.length > limit, rows: rows.slice(0, limit) });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  }
+
+  const orderBy = LOOKUP_SORTS[sortKey];
   const where = [];
   const params = [];
   if (player) { where.push('u.name = ? COLLATE NOCASE'); params.push(player); }
