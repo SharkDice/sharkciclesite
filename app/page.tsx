@@ -1,4 +1,5 @@
 import Image from "next/image"
+import Link from "next/link"
 import { Navigation } from "@/components/navigation"
 import { ServerStatus } from "@/components/server-status"
 import { ImageSlideshow } from "@/components/image-slideshow"
@@ -77,13 +78,12 @@ export default async function MinecraftServer() {
                   {article.summary && (
                     <p className="mt-2 text-gray-300">{article.summary}</p>
                   )}
-                  <div className="mt-5 space-y-4 text-gray-300">
-                    {article.content.split(/\n\s*\n/).map((paragraph, index) => (
-                      <p key={`${article.id}-${index}`} className="whitespace-pre-wrap">
-                        {paragraph}
-                      </p>
-                    ))}
-                  </div>
+                  <Link
+                    href={`/news/${article.id}`}
+                    className="mt-5 inline-flex font-semibold text-cyan-300 hover:text-cyan-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+                  >
+                    Read more <span aria-hidden="true" className="ml-1">→</span>
+                  </Link>
                 </article>
               ))}
             </div>

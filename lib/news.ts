@@ -84,6 +84,13 @@ export async function getPublishedArticles(): Promise<NewsArticle[]> {
   )
 }
 
+export async function getPublishedArticle(
+  id: string,
+): Promise<NewsArticle | undefined> {
+  const articles = await getPublishedArticles()
+  return articles.find((article) => article.id === id)
+}
+
 export async function saveArticles(articles: NewsArticle[]): Promise<void> {
   await mkdir(dataDirectory, { recursive: true })
   const temporaryFile = path.join(dataDirectory, `news-${randomUUID()}.tmp`)
