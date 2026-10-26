@@ -2,12 +2,15 @@ import Image from "next/image"
 import { Navigation } from "@/components/navigation"
 import { ServerStatus } from "@/components/server-status"
 import { ImageSlideshow } from "@/components/image-slideshow"
+import { getPublishedArticles } from "@/lib/news"
 
-export default function MinecraftServer() {
+export const dynamic = "force-dynamic"
+
+export default async function MinecraftServer() {
+  const articles = await getPublishedArticles()
+
   return (
     <div className="min-h-screen bg-[#1A1C1E] text-white">
-      
-
       <Navigation />
 
       {/* Community Description */}
@@ -27,6 +30,74 @@ export default function MinecraftServer() {
       {/* Feature Image Slideshow */}
       <section className="container mx-auto px-4 mb-16">
         <ImageSlideshow />
+      </section>
+
+      {/* News and weekly updates */}
+      <section className="container mx-auto px-4 mb-16" aria-labelledby="news-heading">
+        <div className="max-w-4xl mx-auto">
+          <div className="mb-6 text-center">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-400">
+              From the community
+            </p>
+            <h2 id="news-heading" className="mt-2 text-3xl font-bold">
+              News &amp; Updates
+            </h2>
+            <p className="mt-2 text-gray-400">
+              The latest stories, events, and announcements from Sharkcicle SMP.
+            </p>
+          </div>
+
+          {articles.length > 0 ? (
+            <div className="space-y-6">
+              {articles.map((article) => (
+                <article
+                  key={article.id}
+                  className="rounded-lg border border-white/5 bg-[#2C2F33] p-6 sm:p-8"
+                >
+                  <time
+                    dateTime={article.date}
+                    className="text-sm font-medium text-cyan-300"
+                  >
+                    {new Date(`${article.date}T00:00:00`).toLocaleDateString(
+                      "en-US",
+                      { year: "numeric", month: "long", day: "numeric" },
+                    )}
+                  </time>
+                  <h3 className="mt-2 text-2xl font-bold">{article.title}</h3>
+                  {article.image && (
+                    <Image
+                      src={article.image}
+                      alt={`Photo for ${article.title}`}
+                      width={1200}
+                      height={675}
+                      unoptimized
+                      className="mt-5 max-h-[28rem] w-full rounded-md object-cover"
+                    />
+                  )}
+                  {article.summary && (
+                    <p className="mt-2 text-gray-300">{article.summary}</p>
+                  )}
+                  <div className="mt-5 space-y-4 text-gray-300">
+                    {article.content.split(/\n\s*\n/).map((paragraph, index) => (
+                      <p key={`${article.id}-${index}`} className="whitespace-pre-wrap">
+                        {paragraph}
+                      </p>
+                    ))}
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-lg border border-dashed border-gray-600 bg-[#202326] px-6 py-10 text-center">
+              <p className="text-lg font-semibold text-gray-200">
+                No news just yet
+              </p>
+              <p className="mt-2 text-gray-400">
+                Check back here for the latest community updates.
+              </p>
+            </div>
+          )}
+        </div>
       </section>
 
       {/* Server Status */}
@@ -70,9 +141,13 @@ export default function MinecraftServer() {
           <p>Application approval required to join.</p>
           <p>For business inquiries please email sharkcicle@gmail.com</p>
           <p className="mt-2">Server IP: play.sharkcicle.com</p>
+          <p className="mt-4">
+            <a href="/admin/news" className="text-gray-500 underline hover:text-gray-300">
+              News editor
+            </a>
+          </p>
         </div>
       </footer>
     </div>
   )
 }
-

@@ -11,6 +11,10 @@ const PORT = 3001;
 const TOP_BLOCKS = 3; // block types listed per player
 const MAX_PLAYERS = 10; // players shown on the page
 
+// ONLY these worlds are counted (not case sensitive). Must match CoreProtect's world names
+// and the WORLDS list in rollup.js.
+const WORLDS = ['SS18', 'SS18_nether', 'SS18_the_end'];
+
 /* ------------------------------------------------------------------ *
  * WORKER THREAD: does all the heavy SQLite work so the web server's
  * event loop is never blocked.
@@ -60,11 +64,26 @@ if (!isMainThread) {
 
     const blockStart = firstRowidSince(db, 'co_block', since);
     if (blockStart != null) {
-      // Fire, TNT, creepers, leaf decay, etc. are stored by CoreProtect as "#name"
-      // entries, so skipping anything starting with "#" leaves only real players.
+      // Work out which world ids to count (SS18, its nether and its end)
+      const wanted = new Set(workerData.worlds.map((w) => w.toLowerCase()));
+      const worldIds = db
+        .prepare('SELECT id, world FROM co_world')
+        .all()
+        .filter((w) => wanted.has(String(w.world).toLowerCase()))
+        .map((w) => Number(w.id));
+      if (worldIds.length === 0) {
+        throw new Error('None of the configured worlds were found in CoreProtect (check WORLDS in index.js)');
+      }
+      const worldFilter = `AND wid IN (${worldIds.join(',')})`;
+
+      // Fire, creepers, leaf decay, etc. are stored by CoreProtect as "#name"
+      // entries, so skipping those leaves only real players. TNT ("#tnt...") is
+      // the exception: it is kept and shown under the single name "TNT".
       const names = new Map();
       for (const u of db.prepare('SELECT rowid AS id, user FROM co_user').all()) {
-        if (!u.user.startsWith('#')) names.set(u.id, u.user);
+        if (!u.user) continue;
+        if (u.user.toLowerCase().startsWith('#tnt')) names.set(u.id, 'TNT');
+        else if (!u.user.startsWith('#')) names.set(u.id, u.user);
       }
 
       const materials = new Map();
@@ -74,7 +93,7 @@ if (!isMainThread) {
 
       // action = 0 is "block broken" in CoreProtect, 1 is "placed"
       const brokenRows = db
-        .prepare('SELECT user, type, COUNT(*) AS c FROM co_block WHERE rowid >= ? AND action = 0 GROUP BY user, type')
+        .prepare(`SELECT user, type, COUNT(*) AS c FROM co_block WHERE rowid >= ? AND action = 0 ${worldFilter} GROUP BY user, type`)
         .all(blockStart);
       console.log(`  [worker] grouped block rows (broken): ${brokenRows.length} (${((Date.now() - workerStart) / 1000).toFixed(1)}s in)`);
 
@@ -103,7 +122,7 @@ if (!isMainThread) {
 
       // Now process blocks placed (action = 1) for top builders
       const placedRows = db
-        .prepare('SELECT user, type, COUNT(*) AS c FROM co_block WHERE rowid >= ? AND action = 1 GROUP BY user, type')
+        .prepare(`SELECT user, type, COUNT(*) AS c FROM co_block WHERE rowid >= ? AND action = 1 ${worldFilter} GROUP BY user, type`)
         .all(blockStart);
       console.log(`  [worker] grouped block rows (placed): ${placedRows.length} (${((Date.now() - workerStart) / 1000).toFixed(1)}s in)`);
 
@@ -186,7 +205,9 @@ function updateCache() {
   const started = Date.now();
   console.log(`📊 Updating cache... (${new Date().toLocaleTimeString()})`);
 
-  const worker = new Worker(__filename, { workerData: { dbPath: DB_PATH, topBlocks: TOP_BLOCKS, maxPlayers: MAX_PLAYERS } });
+  const worker = new Worker(__filename, {
+    workerData: { dbPath: DB_PATH, topBlocks: TOP_BLOCKS, maxPlayers: MAX_PLAYERS, worlds: WORLDS },
+  });
   const killer = setTimeout(() => {
     console.error('✗ Update timed out, terminating worker');
     worker.terminate();
