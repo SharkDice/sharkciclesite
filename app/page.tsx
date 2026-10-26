@@ -2,6 +2,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { Navigation } from "@/components/navigation"
 import { ServerStatus } from "@/components/server-status"
+import { ServerActivity } from "@/components/server-activity"
 import { ImageSlideshow } from "@/components/image-slideshow"
 import { getPublishedArticles } from "@/lib/news"
 
@@ -102,8 +103,9 @@ export default async function MinecraftServer() {
 
       {/* Server Status */}
       <section className="container mx-auto px-4 mb-16">
-        <div className="max-w-2xl mx-auto">
+        <div className="mx-auto grid max-w-5xl gap-6 md:grid-cols-2">
           <ServerStatus />
+          <ServerActivity />
         </div>
       </section>
 

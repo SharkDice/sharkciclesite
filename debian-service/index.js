@@ -74,7 +74,7 @@ if (!isMainThread) {
       if (worldIds.length === 0) {
         throw new Error('None of the configured worlds were found in CoreProtect (check WORLDS in index.js)');
       }
-      const worldFilter = `AND wid IN (${worldIds.join(',')})`;
+      const worldFilter = `AND +wid IN (${worldIds.join(',')})`;
 
       // Fire, creepers, leaf decay, etc. are stored by CoreProtect as "#name"
       // entries, so skipping those leaves only real players. TNT ("#tnt...") is
@@ -170,6 +170,7 @@ if (!isMainThread) {
  * ------------------------------------------------------------------ */
 const express = require('express');
 const cors = require('cors');
+const { getRecentActivity } = require('./server-activity');
 
 const app = express();
 const statsDb = new Database(path.join(__dirname, 'stats.db'), { readonly: true, fileMustExist: true });
@@ -256,6 +257,11 @@ setInterval(updateCache, CACHE_INTERVAL);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', cached: !!cachedStats, updating });
+});
+
+app.get('/activity', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.json(getRecentActivity());
 });
 
 app.get('/stats', (req, res) => {
