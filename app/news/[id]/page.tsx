@@ -3,7 +3,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import { Navigation } from "@/components/navigation"
-import { getPublishedArticle } from "@/lib/news"
+import { getPublishedArticle, getPublishedArticles } from "@/lib/news"
 
 export const dynamic = "force-dynamic"
 
@@ -31,7 +31,8 @@ export async function generateMetadata({
 export default async function NewsArticlePage({
   params,
 }: NewsArticlePageProps) {
-  const article = await getPublishedArticle(params.id)
+  const articles = await getPublishedArticles()
+  const article = articles.find((publishedArticle) => publishedArticle.id === params.id)
 
   if (!article) {
     notFound()
@@ -40,14 +41,14 @@ export default async function NewsArticlePage({
   return (
     <main className="min-h-screen bg-[#1A1C1E] text-white">
       <Navigation />
-      <article className="container mx-auto mb-16 px-4">
-        <div className="mx-auto max-w-3xl">
+      <div className="container mx-auto mb-16 grid gap-8 px-4 lg:grid-cols-[minmax(0,1fr)_18rem] lg:gap-10">
+        <article className="min-w-0">
           <Link
             href="/#news-heading"
             className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
           >
             <span aria-hidden="true">←</span>
-            Back to news
+            Back to home
           </Link>
 
           <header className="mt-8">
@@ -90,8 +91,55 @@ export default async function NewsArticlePage({
               </p>
             ))}
           </div>
-        </div>
-      </article>
+        </article>
+
+        <aside
+          aria-labelledby="all-news-heading"
+          className="self-start rounded-lg border border-white/5 bg-[#2C2F33] p-5 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto"
+        >
+          <h2 id="all-news-heading" className="text-lg font-semibold">
+            All published news
+          </h2>
+          <p className="mt-1 text-sm text-gray-400">
+            Browse every community update.
+          </p>
+          <nav aria-label="All published news" className="mt-4">
+            <ul className="space-y-2">
+              {articles.map((listedArticle) => (
+                <li key={listedArticle.id}>
+                  <Link
+                    href={`/news/${listedArticle.id}`}
+                    aria-current={
+                      listedArticle.id === article.id ? "page" : undefined
+                    }
+                    className={`block rounded-md border px-3 py-3 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${
+                      listedArticle.id === article.id
+                        ? "border-cyan-500/50 bg-cyan-950/30 text-white"
+                        : "border-transparent text-gray-300 hover:border-white/10 hover:bg-[#34373C] hover:text-white"
+                    }`}
+                  >
+                    <span className="block font-medium leading-snug">
+                      {listedArticle.title}
+                    </span>
+                    <time
+                      dateTime={listedArticle.date}
+                      className="mt-1 block text-xs text-gray-400"
+                    >
+                      {new Date(
+                        `${listedArticle.date}T00:00:00`,
+                      ).toLocaleDateString("en-US", {
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </time>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        </aside>
+      </div>
     </main>
   )
 }
