@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { AlertCircle, RefreshCw, Pickaxe, MessageSquare, Trophy } from 'lucide-react'
+import { AlertCircle, BarChart3, Blocks, Clock3, MessageSquare, Pickaxe, RefreshCw, Search, Skull, Trophy, Users, type LucideIcon } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { BlockLookup } from '@/components/block-lookup'
 
 interface BlockCount {
   material: string
@@ -184,6 +186,45 @@ function BuilderCard({ builder, rank }: { builder: BuilderStats; rank: number })
   )
 }
 
+function ComingSoon({
+  icon: Icon,
+  title,
+  description,
+}: {
+  icon: LucideIcon
+  title: string
+  description: string
+}) {
+  return (
+    <Card>
+      <CardContent className="flex flex-col items-center py-12 text-center">
+        <div className="mb-4 rounded-full bg-muted p-3">
+          <Icon className="h-6 w-6 text-muted-foreground" />
+        </div>
+        <h2 className="text-lg font-semibold">{title}</h2>
+        <p className="mt-1 max-w-md text-sm text-muted-foreground">{description}</p>
+      </CardContent>
+    </Card>
+  )
+}
+
+function StatsUnavailable({ loading }: { loading: boolean }) {
+  return (
+    <Card>
+      <CardContent className="py-12">
+        {loading ? (
+          <div className="flex items-center justify-center gap-2">
+            <RefreshCw className="h-5 w-5 animate-spin" />
+            <p>Loading statistics...</p>
+          </div>
+        ) : (
+          <p className="text-center text-muted-foreground">No data available.</p>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 export function CoreProtectStats() {
   const [stats, setStats] = useState<StatsData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -251,32 +292,142 @@ export function CoreProtectStats() {
         <p className="text-sm text-gray-500">Last updated: {lastUpdated.toLocaleTimeString()}</p>
       )}
 
-      {stats?.data ? (
-        <>
-          {/* Server totals */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Blocks Broken</CardTitle>
-                <Pickaxe className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.data.totalBlocksBroken.toLocaleString()}</div>
-                <p className="text-xs text-muted-foreground">By players in the last 7 days</p>
-              </CardContent>
-            </Card>
+      <Tabs defaultValue="broken" className="space-y-6">
+        <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+          <TabsList className="h-auto w-max min-w-full justify-start gap-1 rounded-xl border bg-card p-1">
+            <TabsTrigger value="broken" className="h-10 gap-2 px-3">
+              <Pickaxe className="h-4 w-4" />
+              Blocks Broken
+            </TabsTrigger>
+            <TabsTrigger value="placed" className="h-10 gap-2 px-3">
+              <Blocks className="h-4 w-4" />
+              Blocks Placed
+            </TabsTrigger>
+            <TabsTrigger value="mobs" className="h-10 gap-2 px-3">
+              <Skull className="h-4 w-4" />
+              Mob Kills
+            </TabsTrigger>
+            <TabsTrigger value="time" className="h-10 gap-2 px-3">
+              <Clock3 className="h-4 w-4" />
+              Time Played
+            </TabsTrigger>
+            <TabsTrigger value="community" className="h-10 gap-2 px-3">
+              <Users className="h-4 w-4" />
+              Community Stats
+            </TabsTrigger>
+            <TabsTrigger value="other" className="h-10 gap-2 px-3">
+              <BarChart3 className="h-4 w-4" />
+              Other Stats
+            </TabsTrigger>
+            <TabsTrigger value="lookup" className="h-10 gap-2 px-3">
+              <Search className="h-4 w-4" />
+              Block Lookup
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Blocks Placed</CardTitle>
-                <Pickaxe className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.data.totalBlocksPlaced?.toLocaleString() ?? 0}</div>
-                <p className="text-xs text-muted-foreground">By players in the last 7 days</p>
-              </CardContent>
-            </Card>
+        <TabsContent value="broken" className="space-y-6">
+          {stats?.data ? (
+            <>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Blocks Broken</CardTitle>
+                  <Pickaxe className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{stats.data.totalBlocksBroken.toLocaleString()}</div>
+                  <p className="text-xs text-muted-foreground">By players in the last 7 days</p>
+                </CardContent>
+              </Card>
 
+              <section className="space-y-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Trophy className="h-5 w-5 text-yellow-500" />
+                  <h2 className="text-xl font-semibold">Top Miners</h2>
+                  <span className="text-sm text-muted-foreground">
+                    (top {players.length} players, their {topBlocks} most-broken blocks)
+                  </span>
+                </div>
+                {players.length > 0 ? (
+                  <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3">
+                    {players.map((player, i) => (
+                      <PlayerCard key={player.name} player={player} rank={i + 1} />
+                    ))}
+                  </div>
+                ) : (
+                  <Card>
+                    <CardContent className="py-12">
+                      <p className="text-center text-muted-foreground">No blocks have been broken in the last 7 days.</p>
+                    </CardContent>
+                  </Card>
+                )}
+              </section>
+            </>
+          ) : (
+            <StatsUnavailable loading={loading} />
+          )}
+        </TabsContent>
+
+        <TabsContent value="placed" className="space-y-6">
+          {stats?.data ? (
+            <>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Blocks Placed</CardTitle>
+                  <Blocks className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{stats.data.totalBlocksPlaced?.toLocaleString() ?? 0}</div>
+                  <p className="text-xs text-muted-foreground">By players in the last 7 days</p>
+                </CardContent>
+              </Card>
+
+              <section className="space-y-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Trophy className="h-5 w-5 text-green-500" />
+                  <h2 className="text-xl font-semibold">Top Builders</h2>
+                  <span className="text-sm text-muted-foreground">
+                    (top {builders.length} builders, their {topBlocks} most-placed blocks)
+                  </span>
+                </div>
+                {builders.length > 0 ? (
+                  <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3">
+                    {builders.map((builder, i) => (
+                      <BuilderCard key={builder.name} builder={builder} rank={i + 1} />
+                    ))}
+                  </div>
+                ) : (
+                  <Card>
+                    <CardContent className="py-12">
+                      <p className="text-center text-muted-foreground">No blocks have been placed in the last 7 days.</p>
+                    </CardContent>
+                  </Card>
+                )}
+              </section>
+            </>
+          ) : (
+            <StatsUnavailable loading={loading} />
+          )}
+        </TabsContent>
+
+        <TabsContent value="mobs">
+          <ComingSoon
+            icon={Skull}
+            title="Mob kill stats are coming soon"
+            description="Player and server mob kill totals will be available here once tracking is implemented."
+          />
+        </TabsContent>
+
+        <TabsContent value="time">
+          <ComingSoon
+            icon={Clock3}
+            title="Play time stats are coming soon"
+            description="See time played by individual players and across the server here in a future update."
+          />
+        </TabsContent>
+
+        <TabsContent value="community">
+          {stats?.data ? (
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Chat Messages</CardTitle>
@@ -287,74 +438,23 @@ export function CoreProtectStats() {
                 <p className="text-xs text-muted-foreground">Messages sent in the last 7 days</p>
               </CardContent>
             </Card>
-          </div>
+          ) : (
+            <StatsUnavailable loading={loading} />
+          )}
+        </TabsContent>
 
-          {/* Per-player breakdown */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <Trophy className="h-5 w-5 text-yellow-500" />
-              <h2 className="text-xl font-semibold">Top Miners</h2>
-              <span className="text-sm text-muted-foreground">
-                (top {players.length} players, their {topBlocks} most-broken blocks)
-              </span>
-            </div>
+        <TabsContent value="other">
+          <ComingSoon
+            icon={BarChart3}
+            title="More stats are coming soon"
+            description="Additional server statistics will be organized here as they become available."
+          />
+        </TabsContent>
 
-            {players.length > 0 ? (
-              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                {players.map((player, i) => (
-                  <PlayerCard key={player.name} player={player} rank={i + 1} />
-                ))}
-              </div>
-            ) : (
-              <Card>
-                <CardContent className="py-12">
-                  <p className="text-center text-gray-500">No blocks have been broken in the last 7 days.</p>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-
-          {/* Per-builder breakdown */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <Trophy className="h-5 w-5 text-green-500" />
-              <h2 className="text-xl font-semibold">Top Builders</h2>
-              <span className="text-sm text-muted-foreground">
-                (top {stats.data.builders?.length ?? 0} builders, their {topBlocks} most-placed blocks)
-              </span>
-            </div>
-
-            {stats.data.builders && stats.data.builders.length > 0 ? (
-              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                {stats.data.builders.map((builder, i) => (
-                  <BuilderCard key={builder.name} builder={builder} rank={i + 1} />
-                ))}
-              </div>
-            ) : (
-              <Card>
-                <CardContent className="py-12">
-                  <p className="text-center text-gray-500">No blocks have been placed in the last 7 days.</p>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-        </>
-      ) : loading ? (
-        <Card>
-          <CardContent className="py-12">
-            <div className="flex items-center justify-center gap-2">
-              <RefreshCw className="w-5 h-5 animate-spin" />
-              <p>Loading statistics...</p>
-            </div>
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <CardContent className="py-12">
-            <p className="text-center text-gray-500">No data available</p>
-          </CardContent>
-        </Card>
-      )}
+        <TabsContent value="lookup">
+          <BlockLookup />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
