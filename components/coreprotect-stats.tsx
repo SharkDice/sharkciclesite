@@ -267,7 +267,7 @@ export function CoreProtectStats() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Server Statistics</h1>
-          <p className="text-gray-500 mt-1">Last 7 days activity</p>
+          <p className="mt-1 text-muted-foreground">Explore server activity by category and time period.</p>
         </div>
         <button
           onClick={fetchStats}
@@ -327,87 +327,117 @@ export function CoreProtectStats() {
         </div>
 
         <TabsContent value="broken" className="space-y-6">
-          {stats?.data ? (
-            <>
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Blocks Broken</CardTitle>
-                  <Pickaxe className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{stats.data.totalBlocksBroken.toLocaleString()}</div>
-                  <p className="text-xs text-muted-foreground">By players in the last 7 days</p>
-                </CardContent>
-              </Card>
-
-              <section className="space-y-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Trophy className="h-5 w-5 text-yellow-500" />
-                  <h2 className="text-xl font-semibold">Top Miners</h2>
-                  <span className="text-sm text-muted-foreground">
-                    (top {players.length} players, their {topBlocks} most-broken blocks)
-                  </span>
-                </div>
-                {players.length > 0 ? (
-                  <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3">
-                    {players.map((player, i) => (
-                      <PlayerCard key={player.name} player={player} rank={i + 1} />
-                    ))}
-                  </div>
-                ) : (
+          <Tabs defaultValue="seven-days" className="space-y-6">
+            <TabsList className="h-auto flex-wrap justify-start gap-1 rounded-xl border bg-card p-1">
+              <TabsTrigger value="seven-days">Last 7 days</TabsTrigger>
+              <TabsTrigger value="lifetime">Lifetime</TabsTrigger>
+            </TabsList>
+            <TabsContent value="seven-days" className="space-y-6">
+              {stats?.data ? (
+                <>
                   <Card>
-                    <CardContent className="py-12">
-                      <p className="text-center text-muted-foreground">No blocks have been broken in the last 7 days.</p>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Blocks Broken</CardTitle>
+                      <Pickaxe className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{stats.data.totalBlocksBroken.toLocaleString()}</div>
+                      <p className="text-xs text-muted-foreground">By players in the last 7 days</p>
                     </CardContent>
                   </Card>
-                )}
-              </section>
-            </>
-          ) : (
-            <StatsUnavailable loading={loading} />
-          )}
+
+                  <section className="space-y-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Trophy className="h-5 w-5 text-yellow-500" />
+                      <h2 className="text-xl font-semibold">Top Miners</h2>
+                      <span className="text-sm text-muted-foreground">
+                        (top {players.length} players, their {topBlocks} most-broken blocks)
+                      </span>
+                    </div>
+                    {players.length > 0 ? (
+                      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3">
+                        {players.map((player, i) => (
+                          <PlayerCard key={player.name} player={player} rank={i + 1} />
+                        ))}
+                      </div>
+                    ) : (
+                      <Card>
+                        <CardContent className="py-12">
+                          <p className="text-center text-muted-foreground">No blocks have been broken in the last 7 days.</p>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </section>
+                </>
+              ) : (
+                <StatsUnavailable loading={loading} />
+              )}
+            </TabsContent>
+            <TabsContent value="lifetime">
+              <ComingSoon
+                icon={Pickaxe}
+                title="Lifetime block-break stats are coming soon"
+                description="Lifetime totals and player rankings will appear here once lifetime statistics are available."
+              />
+            </TabsContent>
+          </Tabs>
         </TabsContent>
 
         <TabsContent value="placed" className="space-y-6">
-          {stats?.data ? (
-            <>
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Blocks Placed</CardTitle>
-                  <Blocks className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{stats.data.totalBlocksPlaced?.toLocaleString() ?? 0}</div>
-                  <p className="text-xs text-muted-foreground">By players in the last 7 days</p>
-                </CardContent>
-              </Card>
-
-              <section className="space-y-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Trophy className="h-5 w-5 text-green-500" />
-                  <h2 className="text-xl font-semibold">Top Builders</h2>
-                  <span className="text-sm text-muted-foreground">
-                    (top {builders.length} builders, their {topBlocks} most-placed blocks)
-                  </span>
-                </div>
-                {builders.length > 0 ? (
-                  <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3">
-                    {builders.map((builder, i) => (
-                      <BuilderCard key={builder.name} builder={builder} rank={i + 1} />
-                    ))}
-                  </div>
-                ) : (
+          <Tabs defaultValue="seven-days" className="space-y-6">
+            <TabsList className="h-auto flex-wrap justify-start gap-1 rounded-xl border bg-card p-1">
+              <TabsTrigger value="seven-days">Last 7 days</TabsTrigger>
+              <TabsTrigger value="lifetime">Lifetime</TabsTrigger>
+            </TabsList>
+            <TabsContent value="seven-days" className="space-y-6">
+              {stats?.data ? (
+                <>
                   <Card>
-                    <CardContent className="py-12">
-                      <p className="text-center text-muted-foreground">No blocks have been placed in the last 7 days.</p>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Blocks Placed</CardTitle>
+                      <Blocks className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{stats.data.totalBlocksPlaced?.toLocaleString() ?? 0}</div>
+                      <p className="text-xs text-muted-foreground">By players in the last 7 days</p>
                     </CardContent>
                   </Card>
-                )}
-              </section>
-            </>
-          ) : (
-            <StatsUnavailable loading={loading} />
-          )}
+
+                  <section className="space-y-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Trophy className="h-5 w-5 text-green-500" />
+                      <h2 className="text-xl font-semibold">Top Builders</h2>
+                      <span className="text-sm text-muted-foreground">
+                        (top {builders.length} builders, their {topBlocks} most-placed blocks)
+                      </span>
+                    </div>
+                    {builders.length > 0 ? (
+                      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3">
+                        {builders.map((builder, i) => (
+                          <BuilderCard key={builder.name} builder={builder} rank={i + 1} />
+                        ))}
+                      </div>
+                    ) : (
+                      <Card>
+                        <CardContent className="py-12">
+                          <p className="text-center text-muted-foreground">No blocks have been placed in the last 7 days.</p>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </section>
+                </>
+              ) : (
+                <StatsUnavailable loading={loading} />
+              )}
+            </TabsContent>
+            <TabsContent value="lifetime">
+              <ComingSoon
+                icon={Blocks}
+                title="Lifetime block-placement stats are coming soon"
+                description="Lifetime totals and player rankings will appear here once lifetime statistics are available."
+              />
+            </TabsContent>
+          </Tabs>
         </TabsContent>
 
         <TabsContent value="mobs">
