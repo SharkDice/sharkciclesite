@@ -293,8 +293,8 @@ export function CoreProtectStats() {
       )}
 
       <Tabs defaultValue="broken" className="space-y-6">
-        <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-          <TabsList className="h-auto w-max min-w-full justify-start gap-1 rounded-xl border bg-card p-1">
+        <div>
+          <TabsList className="h-auto w-full flex-wrap justify-start gap-1 rounded-xl border bg-card p-1">
             <TabsTrigger value="broken" className="h-10 gap-2 px-3">
               <Pickaxe className="h-4 w-4" />
               Blocks Broken
