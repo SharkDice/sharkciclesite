@@ -1,11 +1,13 @@
 const { Worker, isMainThread, parentPort, workerData } = require('worker_threads');
 const Database = require('better-sqlite3');
+const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
 const DB_PATH = '/DATA/AppData/crafty/servers/802a8dfd-7073-4bfe-852a-0105add883c3/plugins/CoreProtect/database.db';
 const CACHE_FILE = path.join(__dirname, 'stats-cache.json');
 const CACHE_INTERVAL = 5 * 60 * 1000; // 5 minutes
+const ROLLUP_INTERVAL = 5 * 60 * 1000;
 const WORKER_TIMEOUT = 45 * 60 * 1000; // kill a stuck update after 45 minutes (huge DB = slow queries)
 const PORT = 3001;
 const TOP_BLOCKS = 3; // block types listed per player
@@ -59,8 +61,10 @@ if (!isMainThread) {
     let totalChat = 0;
     let totalBlocks = 0;
     let totalBlocksPlaced = 0;
+    let totalMobKills = 0;
     const players = [];
     const builders = [];
+    const mobPlayers = [];
 
     const blockStart = firstRowidSince(db, 'co_block', since);
     if (blockStart != null) {
@@ -80,10 +84,61 @@ if (!isMainThread) {
       // entries, so skipping those leaves only real players. TNT ("#tnt...") is
       // the exception: it is kept and shown under the single name "TNT".
       const names = new Map();
+      const playerIds = [];
       for (const u of db.prepare('SELECT rowid AS id, user FROM co_user').all()) {
         if (!u.user) continue;
         if (u.user.toLowerCase().startsWith('#tnt')) names.set(u.id, 'TNT');
-        else if (!u.user.startsWith('#')) names.set(u.id, u.user);
+        else if (!u.user.startsWith('#')) {
+          names.set(u.id, u.user);
+          playerIds.push(Number(u.id));
+        }
+      }
+
+      const entityNames = new Map();
+      const playerEntityIds = [];
+      for (const entity of db.prepare('SELECT id, entity FROM co_entity_map').all()) {
+        const entityName = String(entity.entity).toLowerCase().replace(/^minecraft:/, '');
+        if (entityName === 'player') {
+          playerEntityIds.push(Number(entity.id));
+        } else if (entityName) {
+          entityNames.set(Number(entity.id), entityName);
+        }
+      }
+
+      const entityIds = [...entityNames.keys()];
+      const mobRows = db.prepare(`
+        SELECT user, type, COUNT(*) AS c
+        FROM co_block
+        WHERE rowid >= ?
+          AND time >= ?
+          AND action = 3
+          AND wid IN (${worldIds.join(',')})
+          AND user IN (${playerIds.length ? playerIds.join(',') : '0'})
+          AND type IN (${entityIds.length ? entityIds.join(',') : '0'})
+          AND type NOT IN (${playerEntityIds.length ? playerEntityIds.join(',') : '0'})
+        GROUP BY user, type
+      `).all(blockStart, since);
+      const mobPlayersByName = new Map();
+      for (const row of mobRows) {
+        const name = names.get(row.user);
+        const mob = entityNames.get(Number(row.type));
+        if (!name || !mob) continue;
+
+        let player = mobPlayersByName.get(name);
+        if (!player) {
+          player = { name, totalKills: 0, mobs: [] };
+          mobPlayersByName.set(name, player);
+        }
+        player.totalKills += row.c;
+        player.mobs.push({ mob, count: row.c });
+      }
+
+      const allMobPlayers = [...mobPlayersByName.values()].sort((a, b) => b.totalKills - a.totalKills);
+      totalMobKills = allMobPlayers.reduce((sum, player) => sum + player.totalKills, 0);
+      for (const player of allMobPlayers.slice(0, workerData.maxPlayers)) {
+        player.mobs.sort((a, b) => b.count - a.count);
+        player.mobs = player.mobs.slice(0, workerData.topBlocks);
+        mobPlayers.push(player);
       }
 
       const materials = new Map();
@@ -158,7 +213,7 @@ if (!isMainThread) {
     }
 
     db.close();
-    parentPort.postMessage({ ok: true, totalBlocks, totalBlocksPlaced, totalChat, players, builders });
+    parentPort.postMessage({ ok: true, totalBlocks, totalBlocksPlaced, totalMobKills, mobPlayers, totalChat, players, builders });
   } catch (err) {
     parentPort.postMessage({ ok: false, error: err.message });
   }
@@ -179,17 +234,72 @@ app.use(express.json());
 
 let cachedStats = null;
 let updating = false;
+let rollupProcess = null;
+
+function getLifetimeMobStats() {
+  const tables = statsDb.prepare(`
+    SELECT COUNT(*) AS count
+    FROM sqlite_master
+    WHERE type = 'table' AND name IN ('meta', 'mob_kill_type_stats')
+  `).get();
+  if (tables.count !== 2) return null;
+
+  const ready = statsDb.prepare("SELECT value FROM meta WHERE key = 'mob_kill_types_ready'").get();
+  if (!ready || Number(ready.value) !== 1) return null;
+  const rows = statsDb.prepare(`
+    SELECT mob, kills
+    FROM mob_kill_type_stats
+    ORDER BY kills DESC, mob COLLATE NOCASE
+    LIMIT 25
+  `).all();
+  const total = statsDb.prepare(
+    'SELECT COALESCE(SUM(kills), 0) AS total FROM mob_kill_type_stats'
+  ).get().total;
+  return { total, topMobs: rows };
+}
+
+function updateLifetimeRollup() {
+  if (rollupProcess) {
+    console.log('… lifetime rollup still running, skipping');
+    return;
+  }
+
+  console.log('📚 Updating lifetime statistics rollup...');
+  const child = spawn(process.execPath, [path.join(__dirname, 'rollup.js')], {
+    cwd: __dirname,
+    stdio: 'inherit',
+  });
+  rollupProcess = child;
+  child.once('error', (error) => {
+    console.error(`✗ Could not start lifetime rollup: ${error.message}`);
+    rollupProcess = null;
+  });
+  child.once('exit', (code, signal) => {
+    if (code !== 0) {
+      console.error(`✗ Lifetime rollup exited with code ${code}${signal ? ` (signal ${signal})` : ''}`);
+    }
+    if (rollupProcess === child) rollupProcess = null;
+  });
+}
 
 function loadCacheFromFile() {
   try {
     if (fs.existsSync(CACHE_FILE)) {
       const parsed = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'));
-      if (parsed.data && Array.isArray(parsed.data.players)) {
+      if (
+        parsed.data &&
+        Array.isArray(parsed.data.players) &&
+        typeof parsed.data.totalMobKills === 'number'
+      ) {
+        parsed.data.mobPlayersReady = Array.isArray(parsed.data.mobPlayers);
+        parsed.data.mobPlayers = Array.isArray(parsed.data.mobPlayers) ? parsed.data.mobPlayers : [];
+        parsed.data.topMobs = Number(parsed.data.topMobs) || TOP_BLOCKS;
+        parsed.data.lifetimeMobTypesReady = Array.isArray(parsed.data.lifetimeTopMobs);
+        parsed.data.lifetimeTopMobs = Array.isArray(parsed.data.lifetimeTopMobs) ? parsed.data.lifetimeTopMobs : [];
         cachedStats = parsed;
         console.log(`✓ Loaded cache from file (generated ${parsed.timestamp})`);
       } else {
-        // Left over from an older version of this service: don't serve misleading numbers
-        console.log('… ignoring old-format cache file, waiting for first update');
+        console.log('… ignoring an outdated cache file, waiting for a fresh update');
       }
     }
   } catch (e) {
@@ -224,6 +334,7 @@ function updateCache() {
       console.error(`✗ Worker error: ${m.error}`);
       return;
     }
+    const lifetimeMobStats = getLifetimeMobStats();
     cachedStats = {
       success: true,
       period: 'last_7_days',
@@ -231,10 +342,18 @@ function updateCache() {
       data: {
         totalBlocksBroken: m.totalBlocks,
         totalBlocksPlaced: m.totalBlocksPlaced,
+        totalMobKills: m.totalMobKills,
+        totalMobKillsAllTime: lifetimeMobStats?.total ?? null,
+        mobKillsRollupReady: lifetimeMobStats !== null,
+        lifetimeTopMobs: lifetimeMobStats?.topMobs ?? [],
+        lifetimeMobTypesReady: lifetimeMobStats !== null,
         totalChatMessages: m.totalChat,
         topBlocks: TOP_BLOCKS,
+        topMobs: TOP_BLOCKS,
+        mobPlayersReady: true,
         players: m.players,
         builders: m.builders,
+        mobPlayers: m.mobPlayers,
       },
     };
     try {
@@ -254,6 +373,8 @@ function updateCache() {
 loadCacheFromFile();
 updateCache();
 setInterval(updateCache, CACHE_INTERVAL);
+updateLifetimeRollup();
+setInterval(updateLifetimeRollup, ROLLUP_INTERVAL);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', cached: !!cachedStats, updating });

@@ -38,12 +38,14 @@ sudo chown "$SERVICE_USER:$SERVICE_USER" "$SERVICE_DIR"
 
 echo "📦 Copying service files..."
 sudo "$SERVICE_NODE" --check "$SCRIPT_DIR/index.js"
+sudo "$SERVICE_NODE" --check "$SCRIPT_DIR/rollup.js"
 sudo "$SERVICE_NODE" --check "$SCRIPT_DIR/server-activity.js"
-sudo cp "$SCRIPT_DIR/package.json" "$SCRIPT_DIR/index.js" "$SCRIPT_DIR/server-activity.js" "$SERVICE_DIR/"
-sudo chown "$SERVICE_USER:$SERVICE_USER" "$SERVICE_DIR/package.json" "$SERVICE_DIR/index.js" "$SERVICE_DIR/server-activity.js"
+sudo cp "$SCRIPT_DIR/package.json" "$SCRIPT_DIR/index.js" "$SCRIPT_DIR/rollup.js" "$SCRIPT_DIR/server-activity.js" "$SERVICE_DIR/"
+sudo chown "$SERVICE_USER:$SERVICE_USER" "$SERVICE_DIR/package.json" "$SERVICE_DIR/index.js" "$SERVICE_DIR/rollup.js" "$SERVICE_DIR/server-activity.js"
 
 echo "🔎 Validating service JavaScript..."
 sudo -u "$SERVICE_USER" "$SERVICE_NODE" --check "$SERVICE_DIR/index.js"
+sudo -u "$SERVICE_USER" "$SERVICE_NODE" --check "$SERVICE_DIR/rollup.js"
 sudo -u "$SERVICE_USER" "$SERVICE_NODE" --check "$SERVICE_DIR/server-activity.js"
 
 echo "📚 Installing dependencies..."
