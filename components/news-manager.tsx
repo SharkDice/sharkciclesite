@@ -228,7 +228,7 @@ export function NewsManager() {
         </p>
         <h1 className="mt-2 text-3xl font-bold">News editor</h1>
         <p className="mt-2 text-gray-400">
-          Write a community update, save it as a draft, or publish it to the homepage.
+          SharkcicleSmp Gazette Accounts Only!
         </p>
       </header>
 
@@ -249,11 +249,6 @@ export function NewsManager() {
             required
             className="border-gray-600 bg-[#1A1C1E] text-white"
           />
-          <p className="mt-3 text-sm text-gray-400">
-            Configure <code className="text-gray-200">NEWS_ADMIN_PASSWORD</code> in{" "}
-            <code className="text-gray-200">.env.local</code>, then restart the dev
-            server.
-          </p>
           {error && <p role="alert" className="mt-4 text-sm text-red-300">{error}</p>}
           <Button type="submit" disabled={loading} className="mt-5">
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
