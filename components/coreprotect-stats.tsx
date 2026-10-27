@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { AlertCircle, BarChart3, Blocks, Clock3, MessageSquare, Pickaxe, RefreshCw, Search, Skull, Trophy, Users, type LucideIcon } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { BlockLookup } from '@/components/block-lookup'
+import { BlockIcon, BlockLookup } from '@/components/block-lookup'
 
 interface BlockCount {
   material: string
@@ -38,6 +38,19 @@ interface StatsData {
     players: PlayerStats[]
     builders: BuilderStats[]
   }
+  error?: string
+}
+
+interface LifetimeBlockRow {
+  block: string
+  broken: number
+  placed: number
+}
+
+interface LifetimeLookupResponse {
+  success: boolean
+  hasMore: boolean
+  rows: LifetimeBlockRow[]
   error?: string
 }
 
@@ -225,6 +238,147 @@ function StatsUnavailable({ loading }: { loading: boolean }) {
   )
 }
 
+function LifetimeBlockStats({ action }: { action: 'broken' | 'placed' }) {
+  const isBroken = action === 'broken'
+  const metricLabel = isBroken ? 'Broken' : 'Placed'
+  const MetricIcon = isBroken ? Pickaxe : Blocks
+  const barColor = isBroken ? 'bg-blue-500' : 'bg-green-500'
+  const [total, setTotal] = useState<number | null>(null)
+  const [topBlocks, setTopBlocks] = useState<LifetimeBlockRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const controller = new AbortController()
+
+    const fetchLifetimeStats = async () => {
+      try {
+        const allBlocks: LifetimeBlockRow[] = []
+        let offset = 0
+        let hasMore = true
+
+        while (hasMore) {
+          const query = new URLSearchParams({
+            limit: '500',
+            offset: String(offset),
+            sort: action,
+          })
+          const response = await fetch(`/api/block-lookup?${query}`, { signal: controller.signal })
+          const data: LifetimeLookupResponse = await response.json()
+
+          if (!response.ok || !data.success) {
+            throw new Error(data.error || `Failed to load lifetime blocks ${action}`)
+          }
+          if (!Array.isArray(data.rows) || typeof data.hasMore !== 'boolean') {
+            throw new Error(`The lifetime blocks ${action} response was invalid`)
+          }
+          if (data.rows.length === 0 && data.hasMore) {
+            throw new Error(`The lifetime blocks ${action} response returned an empty page`)
+          }
+
+          allBlocks.push(...data.rows)
+          offset += data.rows.length
+          hasMore = data.hasMore
+        }
+
+        if (!controller.signal.aborted) {
+          setTotal(allBlocks.reduce((sum, block) => sum + block[action], 0))
+          setTopBlocks(allBlocks.slice(0, 25))
+        }
+      } catch (err) {
+        if (!controller.signal.aborted) {
+          setError(err instanceof Error ? err.message : `Failed to load lifetime blocks ${action}`)
+        }
+      } finally {
+        if (!controller.signal.aborted) setLoading(false)
+      }
+    }
+
+    fetchLifetimeStats()
+    return () => controller.abort()
+  }, [action])
+
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="flex items-center justify-center gap-2 py-12">
+          <RefreshCw className="h-5 w-5 animate-spin" />
+          <p>Loading lifetime block statistics...</p>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (error) {
+    return (
+      <Alert variant="destructive">
+        <AlertCircle className="h-4 w-4" />
+        <AlertDescription>{error}</AlertDescription>
+      </Alert>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Total Blocks {metricLabel}</CardTitle>
+          <MetricIcon className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">{(total ?? 0).toLocaleString()}</div>
+          <p className="text-xs text-muted-foreground">Lifetime total across all tracked blocks</p>
+        </CardContent>
+      </Card>
+
+      <section className="space-y-4">
+        <div className="flex items-center gap-2">
+          <Trophy className="h-5 w-5 text-yellow-500" />
+          <h2 className="text-xl font-semibold">Top 25 Blocks {metricLabel}</h2>
+        </div>
+        {topBlocks.length > 0 ? (
+          <Card>
+            <CardContent className="space-y-4 pt-6">
+              {topBlocks.map((block, index) => {
+                const count = block[action]
+                const maxCount = topBlocks[0][action]
+                const percentage = maxCount > 0 ? (count / maxCount) * 100 : 0
+
+                return (
+                  <div key={block.block} className="space-y-1">
+                    <div className="flex items-baseline justify-between gap-4 text-sm">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className="mr-2 text-muted-foreground">{index + 1}.</span>
+                        <BlockIcon material={block.block} />
+                        <span className="truncate">{formatMaterial(block.block)}</span>
+                      </span>
+                      <span className="shrink-0 font-medium tabular-nums">
+                        {count.toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                      <div
+                        className={`h-full rounded-full ${barColor}`}
+                        style={{ width: `${Math.max(2, percentage)}%` }}
+                      />
+                    </div>
+                  </div>
+                )
+              })}
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardContent className="py-12">
+              <p className="text-center text-muted-foreground">No lifetime block {isBroken ? 'break' : 'placement'} data is available.</p>
+            </CardContent>
+          </Card>
+        )}
+      </section>
+    </div>
+  )
+}
+
 export function CoreProtectStats() {
   const [stats, setStats] = useState<StatsData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -374,11 +528,7 @@ export function CoreProtectStats() {
               )}
             </TabsContent>
             <TabsContent value="lifetime">
-              <ComingSoon
-                icon={Pickaxe}
-                title="Lifetime block-break stats are coming soon"
-                description="Lifetime totals and player rankings will appear here once lifetime statistics are available."
-              />
+              <LifetimeBlockStats action="broken" />
             </TabsContent>
           </Tabs>
         </TabsContent>
@@ -431,11 +581,7 @@ export function CoreProtectStats() {
               )}
             </TabsContent>
             <TabsContent value="lifetime">
-              <ComingSoon
-                icon={Blocks}
-                title="Lifetime block-placement stats are coming soon"
-                description="Lifetime totals and player rankings will appear here once lifetime statistics are available."
-              />
+              <LifetimeBlockStats action="placed" />
             </TabsContent>
           </Tabs>
         </TabsContent>

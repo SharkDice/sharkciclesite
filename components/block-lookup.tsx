@@ -75,7 +75,7 @@ function formatMaterial(material: string) {
     .join(' ')
 }
 
-function BlockIcon({ material }: { material: string }) {
+export function BlockIcon({ material }: { material: string }) {
   const liquid = LIQUID_TEXTURES[material]
   const candidates = useMemo(() => blockTextureCandidates(material), [material])
   // 0..candidates.length-1 tries each block-texture candidate, candidates.length
