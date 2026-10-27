@@ -294,7 +294,10 @@ function loadCacheFromFile() {
         parsed.data.mobPlayersReady = Array.isArray(parsed.data.mobPlayers);
         parsed.data.mobPlayers = Array.isArray(parsed.data.mobPlayers) ? parsed.data.mobPlayers : [];
         parsed.data.topMobs = Number(parsed.data.topMobs) || TOP_BLOCKS;
-        parsed.data.lifetimeMobTypesReady = Array.isArray(parsed.data.lifetimeTopMobs);
+        parsed.data.lifetimeMobTypesReady =
+          parsed.data.lifetimeMobTypesReady === true &&
+          typeof parsed.data.totalMobKillsAllTime === 'number' &&
+          Array.isArray(parsed.data.lifetimeTopMobs);
         parsed.data.lifetimeTopMobs = Array.isArray(parsed.data.lifetimeTopMobs) ? parsed.data.lifetimeTopMobs : [];
         cachedStats = parsed;
         console.log(`✓ Loaded cache from file (generated ${parsed.timestamp})`);

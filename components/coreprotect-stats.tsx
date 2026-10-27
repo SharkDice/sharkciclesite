@@ -81,9 +81,66 @@ interface LifetimeLookupResponse {
 // "deepslate_iron_ore" -> "Deepslate Iron Ore"
 function formatMaterial(material: string) {
   return material
+    .replace(/^minecraft:/i, '')
     .split('_')
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(' ')
+}
+
+const MOB_HEADS: Record<string, string> = {
+  blaze: 'MHF_Blaze',
+  cave_spider: 'MHF_CaveSpider',
+  chicken: 'MHF_Chicken',
+  cow: 'MHF_Cow',
+  creeper: 'MHF_Creeper',
+  enderman: 'MHF_Enderman',
+  ghast: 'MHF_Ghast',
+  iron_golem: 'MHF_Golem',
+  magma_cube: 'MHF_LavaSlime',
+  mooshroom: 'MHF_MushroomCow',
+  mushroom_cow: 'MHF_MushroomCow',
+  ocelot: 'MHF_Ocelot',
+  pig: 'MHF_Pig',
+  pig_zombie: 'MHF_PigZombie',
+  sheep: 'MHF_Sheep',
+  shulker: 'MHF_Shulker',
+  skeleton: 'MHF_Skeleton',
+  slime: 'MHF_Slime',
+  spider: 'MHF_Spider',
+  squid: 'MHF_Squid',
+  stray: 'MHF_Stray',
+  villager: 'MHF_Villager',
+  vex: 'MHF_Vex',
+  witch: 'MHF_Witch',
+  wither: 'MHF_Wither',
+  wither_skeleton: 'MHF_WSkeleton',
+  wolf: 'MHF_Wolf',
+  zombie: 'MHF_Zombie',
+  zombie_pigman: 'MHF_PigZombie',
+}
+
+function MobIcon({ mob }: { mob: string }) {
+  const [failed, setFailed] = useState(false)
+  const mobName = mob.toLowerCase().replace(/^minecraft:/, '')
+  const headName = MOB_HEADS[mobName]
+
+  if (!headName || failed) {
+    return <Skull className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+  }
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={`https://mc-heads.net/avatar/${headName}/48`}
+      alt=""
+      aria-hidden="true"
+      width={20}
+      height={20}
+      className="shrink-0"
+      loading="lazy"
+      onError={() => setFailed(true)}
+    />
+  )
 }
 
 const RANK_STYLES = [
@@ -289,7 +346,10 @@ function MobPlayerCard({ player, rank }: { player: MobPlayerStats; rank: number 
           return (
             <div key={mob.mob} className="space-y-1">
               <div className="flex items-baseline justify-between text-sm">
-                <span className="truncate pr-2">{formatMaterial(mob.mob)}</span>
+                <span className="flex min-w-0 items-center gap-2 pr-2">
+                  <MobIcon mob={mob.mob} />
+                  <span className="truncate">{formatMaterial(mob.mob)}</span>
+                </span>
                 <span className="shrink-0 font-medium tabular-nums">{mob.count.toLocaleString()}</span>
               </div>
               <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
@@ -752,7 +812,10 @@ export function CoreProtectStats() {
                               <span className="w-7 shrink-0 text-right text-sm font-medium tabular-nums text-muted-foreground">
                                 {index + 1}.
                               </span>
-                              <span className="min-w-0 flex-1 truncate text-sm">{formatMaterial(mob.mob)}</span>
+                              <span className="flex min-w-0 flex-1 items-center gap-2 truncate text-sm">
+                                <MobIcon mob={mob.mob} />
+                                <span className="truncate">{formatMaterial(mob.mob)}</span>
+                              </span>
                               <span className="shrink-0 font-semibold tabular-nums">{mob.kills.toLocaleString()}</span>
                             </li>
                           ))}

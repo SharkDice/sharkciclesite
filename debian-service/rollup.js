@@ -1,9 +1,11 @@
 const Database = require('better-sqlite3');
+const fs = require('fs');
 const path = require('path');
 
 const CP_PATH = '/DATA/AppData/crafty/servers/802a8dfd-7073-4bfe-852a-0105add883c3/plugins/CoreProtect/database.db';
 // Normally stats.db. For a rebuild, run with STATS_DB=stats-new.db to write somewhere else.
 const STATS_PATH = process.env.STATS_DB ? path.resolve(process.env.STATS_DB) : path.join(__dirname, 'stats.db');
+const LOCK_PATH = `${STATS_PATH}.rollup.lock`;
 
 // ONLY these worlds are counted (not case sensitive). Must match CoreProtect's world names.
 const WORLDS = ['SS18', 'SS18_nether', 'SS18_the_end'];
@@ -167,7 +169,7 @@ async function main() {
   const entityIdFilter = [...entityNames.keys()].length ? [...entityNames.keys()].join(',') : '0';
   const mobKillChunkQuery = cp.prepare(`
     SELECT date(time, 'unixepoch') AS day, COUNT(*) AS c
-    FROM co_block
+    FROM co_block NOT INDEXED
     WHERE rowid > ? AND rowid <= ?
       AND action = 3
       AND wid IN (${worldIds.join(',')})
@@ -178,7 +180,7 @@ async function main() {
 
   const mobTypeChunkQuery = cp.prepare(`
     SELECT type, COUNT(*) AS c
-    FROM co_block
+    FROM co_block NOT INDEXED
     WHERE rowid > ? AND rowid <= ?
       AND action = 3
       AND wid IN (${worldIds.join(',')})
@@ -188,14 +190,12 @@ async function main() {
   `);
 
   const apply = stats.transaction((blockRows, mobRows, mobTypeRows, blockFrom, mobFrom, mobTypeFrom, to) => {
-    if (blockFrom !== null && getBlockLast.get().value !== blockFrom) {
-      throw new Error('Block rollup progress changed underneath us (another run?)');
-    }
-    if (mobFrom !== null && getMobLast.get().value !== mobFrom) {
-      throw new Error('Mob kill rollup progress changed underneath us (another run?)');
-    }
-    if (mobTypeFrom !== null && getMobTypeLast.get().value !== mobTypeFrom) {
-      throw new Error('Mob-type rollup progress changed underneath us (another run?)');
+    if (
+      (blockFrom !== null && getBlockLast.get().value !== blockFrom) ||
+      (mobFrom !== null && getMobLast.get().value !== mobFrom) ||
+      (mobTypeFrom !== null && getMobTypeLast.get().value !== mobTypeFrom)
+    ) {
+      return false;
     }
     for (const r of blockRows) {
       const uid = userMap.get(r.user);
@@ -209,6 +209,7 @@ async function main() {
     if (blockFrom !== null) setBlockLast.run(to);
     if (mobFrom !== null) setMobLast.run(to);
     if (mobTypeFrom !== null) setMobTypeLast.run(to);
+    return true;
   });
 
   const target = bounds.hi;
@@ -243,7 +244,14 @@ async function main() {
       mobTypeRows = mobTypeChunkQuery.all(mobTypeFrom, to);
       console.log(`Lifetime mob-type batch completed in ${((Date.now() - started) / 1000).toFixed(1)}s (${mobTypeRows.length} mob types).`);
     }
-    apply.immediate(blockRows, mobRows, mobTypeRows, blockFrom, mobFrom, mobTypeFrom, to);
+    const applied = apply.immediate(blockRows, mobRows, mobTypeRows, blockFrom, mobFrom, mobTypeFrom, to);
+    if (!applied) {
+      blockLast = getBlockLast.get().value;
+      mobLast = getMobLast.get().value;
+      mobTypeLast = getMobTypeLast.get().value;
+      console.log(`Another rollup advanced progress; resuming from rowid ${Math.min(blockLast, mobLast, mobTypeLast).toLocaleString()}.`);
+      continue;
+    }
     if (blockFrom !== null) blockLast = to;
     if (mobFrom !== null) mobLast = to;
     if (mobTypeFrom !== null) mobTypeLast = to;
@@ -265,4 +273,54 @@ async function main() {
   stats.close();
 }
 
-main().catch((e) => { console.error('Error:', e.message); process.exit(1); });
+function acquireLock() {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const fd = fs.openSync(LOCK_PATH, 'wx');
+      fs.writeSync(fd, `${process.pid}\n`);
+      return fd;
+    } catch (error) {
+      if (error.code !== 'EEXIST') throw error;
+
+      let pid;
+      try {
+        pid = Number(fs.readFileSync(LOCK_PATH, 'utf8').trim());
+      } catch (readError) {
+        if (readError.code === 'ENOENT') continue;
+        throw readError;
+      }
+      if (Number.isInteger(pid) && pid > 0) {
+        try {
+          process.kill(pid, 0);
+          return null;
+        } catch (processError) {
+          if (processError.code !== 'ESRCH') throw processError;
+        }
+      }
+
+      try {
+        fs.unlinkSync(LOCK_PATH);
+      } catch (unlinkError) {
+        if (unlinkError.code !== 'ENOENT') throw unlinkError;
+      }
+    }
+  }
+  return null;
+}
+
+async function run() {
+  const lockFd = acquireLock();
+  if (lockFd === null) {
+    console.log('Another lifetime rollup is already running; skipping this run.');
+    return;
+  }
+
+  try {
+    await main();
+  } finally {
+    fs.closeSync(lockFd);
+    fs.unlinkSync(LOCK_PATH);
+  }
+}
+
+run().catch((e) => { console.error('Error:', e.message); process.exit(1); });
