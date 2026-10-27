@@ -4,12 +4,17 @@ import { Navigation } from "@/components/navigation"
 import { ServerStatus } from "@/components/server-status"
 import { ServerActivity } from "@/components/server-activity"
 import { ImageSlideshow } from "@/components/image-slideshow"
+import { CommunityQuotes } from "@/components/community-quotes"
+import { getCommunityQuotes } from "@/lib/community-quotes"
 import { getPublishedArticles } from "@/lib/news"
 
 export const dynamic = "force-dynamic"
 
 export default async function MinecraftServer() {
-  const articles = await getPublishedArticles()
+  const [articles, communityQuotes] = await Promise.all([
+    getPublishedArticles(),
+    getCommunityQuotes(),
+  ])
 
   return (
     <div className="min-h-screen bg-[#1A1C1E] text-white">
@@ -100,6 +105,8 @@ export default async function MinecraftServer() {
           )}
         </div>
       </section>
+
+      <CommunityQuotes quotes={communityQuotes} />
 
       {/* Server Status */}
       <section className="container mx-auto px-4 mb-16">
