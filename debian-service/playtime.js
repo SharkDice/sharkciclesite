@@ -162,7 +162,7 @@ function createPlaytimeTracker({ worldPath, objective, scoreUnit, databasePath }
           minutes: scoreUnit === 'ticks' ? Math.floor(score / 1200) : score,
         }))
         .sort((a, b) => b.minutes - a.minutes || a.name.localeCompare(b.name))
-        .slice(0, 25);
+        .slice(0, 50);
 
       weekly.sort((a, b) => b.minutes - a.minutes || a.name.localeCompare(b.name));
 
