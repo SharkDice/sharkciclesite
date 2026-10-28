@@ -13,6 +13,7 @@
   "dependencies": {
     "express": "^4.18.2",
     "better-sqlite3": "^9.2.2",
-    "cors": "^2.8.5"
+    "cors": "^2.8.5",
+    "prismarine-nbt": "^2.7.0"
   }
 }

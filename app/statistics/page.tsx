@@ -3,7 +3,7 @@ import { Navigation } from '@/components/navigation'
 
 export const metadata = {
   title: 'Server Statistics | Sharkcicle SMP',
-  description: 'CoreProtect statistics for the Sharkcicle SMP Minecraft server',
+  description: 'Minecraft server activity and player playtime statistics for the Sharkcicle SMP',
 }
 
 export default function StatisticsPage() {

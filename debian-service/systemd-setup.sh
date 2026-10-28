@@ -16,6 +16,9 @@ SERVICE_NAME="coreprotect-api"
 SERVICE_USER="shark"  # The user that runs the Minecraft server
 SERVICE_DIR="/opt/coreprotect-api"
 SERVICE_PORT="3001"
+PLAYTIME_WORLD_PATH="${PLAYTIME_WORLD_PATH:-/DATA/AppData/crafty/servers/802a8dfd-7073-4bfe-852a-0105add883c3/SS18}"
+PLAYTIME_OBJECTIVE="${PLAYTIME_OBJECTIVE:-Play Minutes}"
+PLAYTIME_SCORE_UNIT="${PLAYTIME_SCORE_UNIT:-minutes}"
 
 SERVICE_NODE="$(sudo -u "$SERVICE_USER" -H bash -lc 'command -v node' 2>/dev/null || true)"
 if [ -z "$SERVICE_NODE" ]; then
@@ -40,13 +43,15 @@ echo "📦 Copying service files..."
 sudo "$SERVICE_NODE" --check "$SCRIPT_DIR/index.js"
 sudo "$SERVICE_NODE" --check "$SCRIPT_DIR/rollup.js"
 sudo "$SERVICE_NODE" --check "$SCRIPT_DIR/server-activity.js"
-sudo cp "$SCRIPT_DIR/package.json" "$SCRIPT_DIR/index.js" "$SCRIPT_DIR/rollup.js" "$SCRIPT_DIR/server-activity.js" "$SERVICE_DIR/"
-sudo chown "$SERVICE_USER:$SERVICE_USER" "$SERVICE_DIR/package.json" "$SERVICE_DIR/index.js" "$SERVICE_DIR/rollup.js" "$SERVICE_DIR/server-activity.js"
+sudo "$SERVICE_NODE" --check "$SCRIPT_DIR/playtime.js"
+sudo cp "$SCRIPT_DIR/package.json" "$SCRIPT_DIR/index.js" "$SCRIPT_DIR/rollup.js" "$SCRIPT_DIR/server-activity.js" "$SCRIPT_DIR/playtime.js" "$SERVICE_DIR/"
+sudo chown "$SERVICE_USER:$SERVICE_USER" "$SERVICE_DIR/package.json" "$SERVICE_DIR/index.js" "$SERVICE_DIR/rollup.js" "$SERVICE_DIR/server-activity.js" "$SERVICE_DIR/playtime.js"
 
 echo "🔎 Validating service JavaScript..."
 sudo -u "$SERVICE_USER" "$SERVICE_NODE" --check "$SERVICE_DIR/index.js"
 sudo -u "$SERVICE_USER" "$SERVICE_NODE" --check "$SERVICE_DIR/rollup.js"
 sudo -u "$SERVICE_USER" "$SERVICE_NODE" --check "$SERVICE_DIR/server-activity.js"
+sudo -u "$SERVICE_USER" "$SERVICE_NODE" --check "$SERVICE_DIR/playtime.js"
 
 echo "📚 Installing dependencies..."
 cd "$SERVICE_DIR"
@@ -65,6 +70,9 @@ WorkingDirectory=$SERVICE_DIR
 ExecStart=$SERVICE_NODE $SERVICE_DIR/index.js
 Restart=always
 RestartSec=10
+Environment=PLAYTIME_WORLD_PATH=$PLAYTIME_WORLD_PATH
+Environment="PLAYTIME_OBJECTIVE=$PLAYTIME_OBJECTIVE"
+Environment=PLAYTIME_SCORE_UNIT=$PLAYTIME_SCORE_UNIT
 
 [Install]
 WantedBy=multi-user.target
@@ -92,6 +100,11 @@ if [ "$service_ready" = true ]; then
   echo "✓ Service is running!"
   echo "📊 Stats available at: http://localhost:$SERVICE_PORT/stats"
   echo "👥 Activity available at: http://localhost:$SERVICE_PORT/activity"
+  if curl -fsS "http://localhost:$SERVICE_PORT/time-played" > /dev/null; then
+    echo "⏱️  Playtime available at: http://localhost:$SERVICE_PORT/time-played"
+  else
+    echo "⚠️  Playtime is not available yet. Check PLAYTIME_WORLD_PATH and PLAYTIME_OBJECTIVE in the systemd service."
+  fi
 else
   echo "⚠️  Service health/activity check failed. Check status and logs with:"
   echo "   sudo systemctl status $SERVICE_NAME"

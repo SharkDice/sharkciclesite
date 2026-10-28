@@ -3,6 +3,7 @@ const Database = require('better-sqlite3');
 const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const { createPlaytimeTracker } = require('./playtime');
 
 const DB_PATH = '/DATA/AppData/crafty/servers/802a8dfd-7073-4bfe-852a-0105add883c3/plugins/CoreProtect/database.db';
 const CACHE_FILE = path.join(__dirname, 'stats-cache.json');
@@ -16,6 +17,11 @@ const MAX_PLAYERS = 10; // players shown on the page
 // ONLY these worlds are counted (not case sensitive). Must match CoreProtect's world names
 // and the WORLDS list in rollup.js.
 const WORLDS = ['SS18', 'SS18_nether', 'SS18_the_end'];
+const PLAYTIME_WORLD_PATH = process.env.PLAYTIME_WORLD_PATH ||
+  path.join(path.dirname(path.dirname(path.dirname(DB_PATH))), 'SS18');
+const PLAYTIME_OBJECTIVE = process.env.PLAYTIME_OBJECTIVE || 'Play Minutes';
+const PLAYTIME_SCORE_UNIT = process.env.PLAYTIME_SCORE_UNIT || 'minutes';
+const PLAYTIME_INTERVAL = 5 * 60 * 1000;
 
 /* ------------------------------------------------------------------ *
  * WORKER THREAD: does all the heavy SQLite work so the web server's
@@ -235,6 +241,15 @@ app.use(express.json());
 let cachedStats = null;
 let updating = false;
 let rollupProcess = null;
+let cachedPlaytime = null;
+let playtimeError = null;
+let updatingPlaytime = false;
+const playtimeTracker = createPlaytimeTracker({
+  worldPath: PLAYTIME_WORLD_PATH,
+  objective: PLAYTIME_OBJECTIVE,
+  scoreUnit: PLAYTIME_SCORE_UNIT,
+  databasePath: path.join(__dirname, 'playtime.db'),
+});
 
 function getLifetimeMobStats() {
   const tables = statsDb.prepare(`
@@ -380,12 +395,46 @@ updateLifetimeRollup();
 setInterval(updateLifetimeRollup, ROLLUP_INTERVAL);
 
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', cached: !!cachedStats, updating });
+  res.json({
+    status: 'ok',
+    cached: !!cachedStats,
+    updating,
+    playtimeCached: !!cachedPlaytime,
+    playtimeError: playtimeError !== null,
+  });
 });
+
+async function updatePlaytimeCache() {
+  if (updatingPlaytime) return;
+  updatingPlaytime = true;
+  try {
+    cachedPlaytime = await playtimeTracker.update();
+    playtimeError = null;
+  } catch (error) {
+    playtimeError = error instanceof Error ? error.message : String(error);
+    console.error(`✗ Playtime update failed: ${playtimeError}`);
+  } finally {
+    updatingPlaytime = false;
+  }
+}
+
+updatePlaytimeCache();
+setInterval(updatePlaytimeCache, PLAYTIME_INTERVAL);
 
 app.get('/activity', (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   res.json(getRecentActivity());
+});
+
+app.get('/time-played', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  if (!cachedPlaytime) {
+    return res.status(503).json({
+      success: false,
+      error: 'Playtime scores are unavailable. Check the service logs and scoreboard path/objective.',
+    });
+  }
+  res.json(cachedPlaytime);
 });
 
 app.get('/stats', (req, res) => {
@@ -512,5 +561,11 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 CoreProtect API running on http://0.0.0.0:${PORT}`);
 });
 
-process.on('SIGINT', () => process.exit(0));
-process.on('SIGTERM', () => process.exit(0));
+function shutdown() {
+  playtimeTracker.close();
+  statsDb.close();
+  process.exit(0);
+}
+
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);

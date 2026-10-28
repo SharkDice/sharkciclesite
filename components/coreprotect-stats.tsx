@@ -6,6 +6,7 @@ import { AlertCircle, BarChart3, Blocks, Clock3, MessageSquare, Pickaxe, Refresh
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { BlockIcon, BlockLookup } from '@/components/block-lookup'
+import { PlaytimeStats } from '@/components/playtime-stats'
 
 interface BlockCount {
   material: string
@@ -840,11 +841,7 @@ export function CoreProtectStats() {
         </TabsContent>
 
         <TabsContent value="time">
-          <ComingSoon
-            icon={Clock3}
-            title="Play time stats are coming soon"
-            description="See time played by individual players and across the server here in a future update."
-          />
+          <PlaytimeStats />
         </TabsContent>
 
         <TabsContent value="community">
