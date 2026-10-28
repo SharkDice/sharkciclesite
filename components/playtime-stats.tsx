@@ -3,12 +3,13 @@
 import { useEffect, useState } from 'react'
 import { AlertCircle, Clock3, RefreshCw, Trophy } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 interface PlaytimePlayer {
   name: string
   minutes: number
+  chatMessages?: number
 }
 
 interface PlaytimeResponse {
@@ -40,15 +41,15 @@ function formatPlaytime(minutes: number) {
   return parts.join(', ')
 }
 
-function PlayerAvatar({ name }: { name: string }) {
+function PlayerAvatar({ name, size = 32 }: { name: string; size?: number }) {
   const [failed, setFailed] = useState(false)
 
   if (failed) {
     return (
       <svg
         viewBox="0 0 8 8"
-        width={32}
-        height={32}
+        width={size}
+        height={size}
         className="shrink-0 rounded"
         aria-hidden="true"
         shapeRendering="crispEdges"
@@ -69,14 +70,88 @@ function PlayerAvatar({ name }: { name: string }) {
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={`https://minotar.net/avatar/${encodeURIComponent(name)}/32`}
+      src={`https://minotar.net/avatar/${encodeURIComponent(name)}/${size}`}
       alt=""
-      width={32}
-      height={32}
+      width={size}
+      height={size}
       className="shrink-0 rounded"
       loading="lazy"
       onError={() => setFailed(true)}
     />
+  )
+}
+
+const RANK_STYLES = [
+  'bg-yellow-400 text-yellow-950',
+  'bg-gray-300 text-gray-800',
+  'bg-amber-600 text-amber-50',
+]
+
+function WeeklyPlaytimeCard({
+  player,
+  rank,
+  totalWeeklyChatMessages,
+}: {
+  player: PlaytimePlayer
+  rank: number
+  totalWeeklyChatMessages?: number
+}) {
+  const rankStyle = RANK_STYLES[rank - 1] ?? 'bg-muted text-muted-foreground'
+  const chatPercentage = totalWeeklyChatMessages && totalWeeklyChatMessages > 0 && player.chatMessages !== undefined
+    ? (player.chatMessages / totalWeeklyChatMessages) * 100
+    : 0
+
+  return (
+    <Card className="overflow-hidden">
+      <CardHeader className="pb-3">
+        <div className="flex items-center gap-3">
+          <div className="relative shrink-0">
+            <PlayerAvatar name={player.name} size={48} />
+            <span
+              className={`absolute -top-2 -left-2 flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold shadow ${rankStyle}`}
+            >
+              {rank}
+            </span>
+          </div>
+          <div className="min-w-0">
+            <CardTitle className="truncate text-lg">{player.name}</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              <span className="font-semibold text-foreground">{formatPlaytime(player.minutes)}</span> played
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {player.minutes.toLocaleString()} minutes total
+            </p>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {player.chatMessages !== undefined && totalWeeklyChatMessages !== undefined ? (
+          <div className="space-y-2">
+            <div className="flex items-baseline justify-between gap-2 text-sm">
+              <span className="text-muted-foreground">
+                {player.chatMessages.toLocaleString()} chat message{player.chatMessages === 1 ? '' : 's'}
+              </span>
+              <span className="shrink-0 font-medium tabular-nums">{chatPercentage.toFixed(1)}%</span>
+            </div>
+            <div
+              className="h-2 w-full overflow-hidden rounded-full bg-muted"
+              role="img"
+              aria-label={`${player.chatMessages.toLocaleString()} of ${totalWeeklyChatMessages.toLocaleString()} community chat messages, ${chatPercentage.toFixed(1)} percent`}
+            >
+              <div
+                className="h-full rounded-full bg-blue-500 transition-all"
+                style={{ width: `${chatPercentage}%` }}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              of {totalWeeklyChatMessages.toLocaleString()} community messages in the last 7 days
+            </p>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">Chat message counts updating...</p>
+        )}
+      </CardContent>
+    </Card>
   )
 }
 
@@ -139,6 +214,9 @@ export function PlaytimeStats({
   const [stats, setStats] = useState<PlaytimeResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const totalWeeklyChatMessages = weeklyChatMessages
+    ? Object.values(weeklyChatMessages).reduce((total, count) => total + count, 0)
+    : undefined
 
   useEffect(() => {
     const controller = new AbortController()
@@ -215,12 +293,29 @@ export function PlaytimeStats({
                   </CardContent>
                 </Card>
               )}
-              <PlaytimeLeaderboard
-                players={stats.weekly ?? []}
-                emptyMessage="No player playtime has been recorded in the available period."
-                chatMessagesByPlayer={weeklyChatMessages}
-                chatPeriod="in the last 7 days"
-              />
+              {(stats.weekly ?? []).length > 0 ? (
+                <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3">
+                  {stats.weekly?.map((player, index) => (
+                    <WeeklyPlaytimeCard
+                      key={player.name}
+                      player={{
+                        ...player,
+                        chatMessages: weeklyChatMessages?.[player.name.toLowerCase()],
+                      }}
+                      rank={index + 1}
+                      totalWeeklyChatMessages={totalWeeklyChatMessages}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <Card>
+                  <CardContent className="py-12">
+                    <p className="text-center text-muted-foreground">
+                      No player playtime has been recorded in the available period.
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
             </TabsContent>
             <TabsContent value="lifetime" className="space-y-4">
               <div className="flex items-center gap-2">

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { AlertCircle, BarChart3, Blocks, Clock3, MessageSquare, Pickaxe, RefreshCw, Search, Skull, Trophy, Users, type LucideIcon } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -842,6 +842,8 @@ export function CoreProtectStats() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+  const [refreshStatus, setRefreshStatus] = useState<'refreshing' | 'success' | 'fading' | null>(null)
+  const refreshMessageTimers = useRef<ReturnType<typeof setTimeout>[]>([])
 
   const fetchStats = async () => {
     try {
@@ -853,12 +855,15 @@ export function CoreProtectStats() {
 
       if (!data.success) {
         setError(data.error || 'Failed to fetch statistics')
+        return false
       } else {
         setStats(data)
         setLastUpdated(new Date())
+        return true
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch statistics')
+      return false
     } finally {
       setLoading(false)
     }
@@ -867,8 +872,33 @@ export function CoreProtectStats() {
   useEffect(() => {
     fetchStats()
     const interval = setInterval(fetchStats, 60000)
-    return () => clearInterval(interval)
+    return () => {
+      clearInterval(interval)
+      refreshMessageTimers.current.forEach((timer) => clearTimeout(timer))
+    }
   }, [])
+
+  const handleRefresh = async () => {
+    refreshMessageTimers.current.forEach((timer) => clearTimeout(timer))
+    refreshMessageTimers.current = []
+    setRefreshStatus('refreshing')
+    const startedAt = Date.now()
+    const succeeded = await fetchStats()
+
+    await new Promise((resolve) => {
+      setTimeout(resolve, Math.max(0, 3000 - (Date.now() - startedAt)))
+    })
+
+    if (succeeded) {
+      setRefreshStatus('success')
+      refreshMessageTimers.current.push(
+        setTimeout(() => setRefreshStatus('fading'), 1200),
+        setTimeout(() => setRefreshStatus(null), 1700),
+      )
+    } else {
+      setRefreshStatus(null)
+    }
+  }
 
   const players = stats?.data?.players ?? []
   const builders = stats?.data?.builders ?? []
@@ -881,14 +911,27 @@ export function CoreProtectStats() {
           <h1 className="text-3xl font-bold">Server Statistics</h1>
           <p className="mt-1 text-muted-foreground">Explore server activity by category and time period.</p>
         </div>
-        <button
-          onClick={fetchStats}
-          disabled={loading}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          {loading ? 'Updating...' : 'Refresh'}
-        </button>
+        <div className="relative">
+          <button
+            onClick={handleRefresh}
+            disabled={loading || refreshStatus === 'refreshing'}
+            aria-busy={refreshStatus === 'refreshing'}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            <RefreshCw className={`w-4 h-4 ${refreshStatus === 'refreshing' ? 'animate-spin' : ''}`} />
+            {refreshStatus === 'refreshing' ? 'Updating...' : 'Refresh'}
+          </button>
+          {refreshStatus === 'success' || refreshStatus === 'fading' ? (
+            <span
+              role="status"
+              className={`absolute right-0 top-full mt-2 whitespace-nowrap text-sm text-green-600 transition-opacity duration-500 dark:text-green-400 ${
+                refreshStatus === 'fading' ? 'pointer-events-none opacity-0' : 'opacity-100'
+              }`}
+            >
+              Successfully refreshed
+            </span>
+          ) : null}
+        </div>
       </div>
 
       {error && (
