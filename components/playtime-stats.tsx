@@ -160,41 +160,72 @@ function PlaytimeLeaderboard({
   emptyMessage,
   showTotalMinutes = false,
   chatMessagesByPlayer,
-  chatPeriod,
+  totalChatMessages,
 }: {
   players: PlaytimePlayer[]
   emptyMessage: string
   showTotalMinutes?: boolean
   chatMessagesByPlayer?: Record<string, number>
-  chatPeriod: 'in the last 7 days' | 'total'
+  totalChatMessages?: number
 }) {
   return (
     <Card>
       <CardContent className="pt-6">
         {players.length > 0 ? (
           <ol className="space-y-3">
-            {players.map((player, index) => (
-              <li key={player.name} className="flex items-center gap-3">
-                <span className="w-7 shrink-0 text-right text-sm font-medium tabular-nums text-muted-foreground">
-                  {index + 1}.
-                </span>
-                <PlayerAvatar name={player.name} />
-                <span className="min-w-0 flex-1 truncate text-sm font-medium">{player.name}</span>
-                <span className="shrink-0 text-right">
-                  <span className="font-semibold tabular-nums">{formatPlaytime(player.minutes)}</span>
-                  {showTotalMinutes && (
-                    <span className="block text-xs text-muted-foreground">
-                      {player.minutes.toLocaleString()} total minutes
-                    </span>
-                  )}
-                  <span className="block text-xs text-muted-foreground">
-                    {chatMessagesByPlayer
-                      ? `${(chatMessagesByPlayer[player.name.toLowerCase()] ?? 0).toLocaleString()} chat messages ${chatPeriod}`
-                      : 'Chat message counts updating...'}
+            {players.map((player, index) => {
+              const playerChatMessages = chatMessagesByPlayer?.[player.name.toLowerCase()] ?? 0
+              const chatPercentage = totalChatMessages && totalChatMessages > 0
+                ? (playerChatMessages / totalChatMessages) * 100
+                : 0
+
+              return (
+                <li
+                  key={player.name}
+                  className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 md:grid-cols-[auto_auto_8rem_minmax(140px,1.20fr)_minmax(16rem,1fr)]"
+                >
+                  <span className="w-7 shrink-0 text-right text-sm font-medium tabular-nums text-muted-foreground">
+                    {index + 1}.
                   </span>
-                </span>
-              </li>
-            ))}
+                  <PlayerAvatar name={player.name} />
+                  <span className="min-w-0 truncate text-sm font-medium">{player.name}</span>
+                  {chatMessagesByPlayer && totalChatMessages !== undefined && (
+                    <div className="col-start-3 col-span-2 row-start-2 space-y-2 md:col-start-4 md:col-span-1 md:row-start-1">
+                      <div className="flex items-baseline justify-between gap-2 text-sm">
+                        <span className="text-muted-foreground">
+                          {playerChatMessages.toLocaleString()} chat message{playerChatMessages === 1 ? '' : 's'}
+                        </span>
+                        <span className="shrink-0 font-medium tabular-nums">{chatPercentage.toFixed(1)}%</span>
+                      </div>
+                      <div
+                        className="h-2 w-full overflow-hidden rounded-full bg-muted"
+                        role="img"
+                        aria-label={`${playerChatMessages.toLocaleString()} of ${totalChatMessages.toLocaleString()} community chat messages, ${chatPercentage.toFixed(1)} percent`}
+                      >
+                        <div
+                          className="h-full rounded-full bg-blue-500 transition-all"
+                          style={{ width: `${chatPercentage}%` }}
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        of {totalChatMessages.toLocaleString()} community messages total
+                      </p>
+                    </div>
+                  )}
+                  <span className="col-start-3 col-span-2 row-start-3 text-right md:col-start-5 md:col-span-1 md:row-start-1">
+                    <span className="font-semibold tabular-nums">{formatPlaytime(player.minutes)}</span>
+                    {showTotalMinutes && (
+                      <span className="block text-xs text-muted-foreground">
+                        {player.minutes.toLocaleString()} total minutes
+                      </span>
+                    )}
+                    {!chatMessagesByPlayer && (
+                      <span className="block text-xs text-muted-foreground">Chat message counts updating...</span>
+                    )}
+                  </span>
+                </li>
+              )
+            })}
           </ol>
         ) : (
           <p className="py-6 text-center text-sm text-muted-foreground">{emptyMessage}</p>
@@ -216,6 +247,9 @@ export function PlaytimeStats({
   const [error, setError] = useState<string | null>(null)
   const totalWeeklyChatMessages = weeklyChatMessages
     ? Object.values(weeklyChatMessages).reduce((total, count) => total + count, 0)
+    : undefined
+  const totalLifetimeChatMessages = lifetimeChatMessages
+    ? Object.values(lifetimeChatMessages).reduce((total, count) => total + count, 0)
     : undefined
 
   useEffect(() => {
@@ -269,11 +303,6 @@ export function PlaytimeStats({
 
       {stats && (
         <>
-          {stats.timestamp && (
-            <p className="text-sm text-muted-foreground">
-              Playtime data updated: {new Date(stats.timestamp).toLocaleTimeString()}
-            </p>
-          )}
           <Tabs defaultValue="seven-days" className="space-y-6">
             <TabsList className="h-auto flex-wrap justify-start gap-1 rounded-xl border bg-card p-1">
               <TabsTrigger value="seven-days">Last 7 days</TabsTrigger>
@@ -327,7 +356,7 @@ export function PlaytimeStats({
                 emptyMessage="No lifetime playtime scores were found."
                 showTotalMinutes
                 chatMessagesByPlayer={lifetimeChatMessages}
-                chatPeriod="total"
+                totalChatMessages={totalLifetimeChatMessages}
               />
             </TabsContent>
           </Tabs>
