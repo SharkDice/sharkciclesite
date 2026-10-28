@@ -220,13 +220,37 @@ if (!isMainThread) {
       }
     }
 
+    const chatNames = new Map(
+      db.prepare('SELECT rowid AS id, user FROM co_user').all()
+        .filter((user) => user.user && !user.user.startsWith('#'))
+        .map((user) => [Number(user.id), user.user])
+    );
+    const chatMessagesLast7DaysByPlayer = {};
+    const chatMessagesAllTimeByPlayer = {};
     const chatStart = firstRowidSince(db, 'co_chat', since);
     if (chatStart != null) {
-      totalChat = db
-        .prepare('SELECT COUNT(*) AS c FROM co_chat WHERE rowid >= ?')
-        .get(chatStart).c;
+      const recentChatRows = db.prepare(`
+        SELECT user, COUNT(*) AS c
+        FROM co_chat
+        WHERE rowid >= ? AND time >= ?
+        GROUP BY user
+      `).all(chatStart, since);
+      totalChat = recentChatRows.reduce((sum, row) => sum + row.c, 0);
+      for (const row of recentChatRows) {
+        const name = chatNames.get(Number(row.user));
+        if (name) chatMessagesLast7DaysByPlayer[name.toLowerCase()] = row.c;
+      }
     }
-    totalChatAllTime = db.prepare('SELECT COUNT(*) AS c FROM co_chat').get().c;
+    const lifetimeChatRows = db.prepare(`
+      SELECT user, COUNT(*) AS c
+      FROM co_chat
+      GROUP BY user
+    `).all();
+    totalChatAllTime = lifetimeChatRows.reduce((sum, row) => sum + row.c, 0);
+    for (const row of lifetimeChatRows) {
+      const name = chatNames.get(Number(row.user));
+      if (name) chatMessagesAllTimeByPlayer[name.toLowerCase()] = row.c;
+    }
 
     db.close();
     const topCounts = (counts) =>
@@ -246,6 +270,8 @@ if (!isMainThread) {
       totalChat,
       players,
       builders,
+      chatMessagesLast7DaysByPlayer,
+      chatMessagesAllTimeByPlayer,
     });
   } catch (err) {
     parentPort.postMessage({ ok: false, error: err.message });
@@ -338,6 +364,20 @@ function loadCacheFromFile() {
         parsed.data.totalChatMessagesAllTime = Number.isSafeInteger(parsed.data.totalChatMessagesAllTime)
           ? parsed.data.totalChatMessagesAllTime
           : null;
+        if (
+          !parsed.data.chatMessagesLast7DaysByPlayer ||
+          typeof parsed.data.chatMessagesLast7DaysByPlayer !== 'object' ||
+          Array.isArray(parsed.data.chatMessagesLast7DaysByPlayer)
+        ) {
+          delete parsed.data.chatMessagesLast7DaysByPlayer;
+        }
+        if (
+          !parsed.data.chatMessagesAllTimeByPlayer ||
+          typeof parsed.data.chatMessagesAllTimeByPlayer !== 'object' ||
+          Array.isArray(parsed.data.chatMessagesAllTimeByPlayer)
+        ) {
+          delete parsed.data.chatMessagesAllTimeByPlayer;
+        }
         parsed.data.topBrokenBlocks = Array.isArray(parsed.data.topBrokenBlocks) ? parsed.data.topBrokenBlocks : [];
         parsed.data.topPlacedBlocks = Array.isArray(parsed.data.topPlacedBlocks) ? parsed.data.topPlacedBlocks : [];
         parsed.data.topMobTypes = Array.isArray(parsed.data.topMobTypes) ? parsed.data.topMobTypes : [];
@@ -403,6 +443,8 @@ function updateCache() {
         lifetimeMobTypesReady: lifetimeMobStats !== null,
         totalChatMessages: m.totalChat,
         totalChatMessagesAllTime: m.totalChatAllTime,
+        chatMessagesLast7DaysByPlayer: m.chatMessagesLast7DaysByPlayer,
+        chatMessagesAllTimeByPlayer: m.chatMessagesAllTimeByPlayer,
         topBlocks: TOP_BLOCKS,
         topMobs: TOP_BLOCKS,
         mobPlayersReady: true,

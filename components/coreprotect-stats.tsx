@@ -60,6 +60,8 @@ interface StatsData {
     topMobTypes: CommunityTopStat[]
     totalChatMessages: number
     totalChatMessagesAllTime: number | null
+    chatMessagesLast7DaysByPlayer?: Record<string, number>
+    chatMessagesAllTimeByPlayer?: Record<string, number>
     topBlocks: number
     topMobs: number
     mobPlayersReady: boolean
@@ -1154,7 +1156,10 @@ export function CoreProtectStats() {
         </TabsContent>
 
         <TabsContent value="time">
-          <PlaytimeStats />
+          <PlaytimeStats
+            weeklyChatMessages={stats?.data?.chatMessagesLast7DaysByPlayer}
+            lifetimeChatMessages={stats?.data?.chatMessagesAllTimeByPlayer}
+          />
         </TabsContent>
 
         <TabsContent value="community">

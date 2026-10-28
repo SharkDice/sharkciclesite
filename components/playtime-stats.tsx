@@ -84,10 +84,14 @@ function PlaytimeLeaderboard({
   players,
   emptyMessage,
   showTotalMinutes = false,
+  chatMessagesByPlayer,
+  chatPeriod,
 }: {
   players: PlaytimePlayer[]
   emptyMessage: string
   showTotalMinutes?: boolean
+  chatMessagesByPlayer?: Record<string, number>
+  chatPeriod: 'in the last 7 days' | 'total'
 }) {
   return (
     <Card>
@@ -108,6 +112,11 @@ function PlaytimeLeaderboard({
                       {player.minutes.toLocaleString()} total minutes
                     </span>
                   )}
+                  <span className="block text-xs text-muted-foreground">
+                    {chatMessagesByPlayer
+                      ? `${(chatMessagesByPlayer[player.name.toLowerCase()] ?? 0).toLocaleString()} chat messages ${chatPeriod}`
+                      : 'Chat message counts updating...'}
+                  </span>
                 </span>
               </li>
             ))}
@@ -120,7 +129,13 @@ function PlaytimeLeaderboard({
   )
 }
 
-export function PlaytimeStats() {
+export function PlaytimeStats({
+  weeklyChatMessages,
+  lifetimeChatMessages,
+}: {
+  weeklyChatMessages?: Record<string, number>
+  lifetimeChatMessages?: Record<string, number>
+}) {
   const [stats, setStats] = useState<PlaytimeResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -203,6 +218,8 @@ export function PlaytimeStats() {
               <PlaytimeLeaderboard
                 players={stats.weekly ?? []}
                 emptyMessage="No player playtime has been recorded in the available period."
+                chatMessagesByPlayer={weeklyChatMessages}
+                chatPeriod="in the last 7 days"
               />
             </TabsContent>
             <TabsContent value="lifetime" className="space-y-4">
@@ -214,6 +231,8 @@ export function PlaytimeStats() {
                 players={stats.lifetime ?? []}
                 emptyMessage="No lifetime playtime scores were found."
                 showTotalMinutes
+                chatMessagesByPlayer={lifetimeChatMessages}
+                chatPeriod="total"
               />
             </TabsContent>
           </Tabs>
