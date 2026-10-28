@@ -207,9 +207,11 @@ function PlaytimeLeaderboard({
                           style={{ width: `${chatPercentage}%` }}
                         />
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        of {totalChatMessages.toLocaleString()} community messages total
-                      </p>
+                      {index === 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          of {totalChatMessages.toLocaleString()} community messages total
+                        </p>
+                      )}
                     </div>
                   )}
                   <span className="col-start-3 col-span-2 row-start-3 text-right md:col-start-5 md:col-span-1 md:row-start-1">
