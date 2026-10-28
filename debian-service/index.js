@@ -68,6 +68,7 @@ if (!isMainThread) {
     let totalBlocks = 0;
     let totalBlocksPlaced = 0;
     let totalMobKills = 0;
+    let totalChatAllTime = 0;
     const brokenBlockTotals = new Map();
     const placedBlockTotals = new Map();
     const mobTypeTotals = new Map();
@@ -225,6 +226,7 @@ if (!isMainThread) {
         .prepare('SELECT COUNT(*) AS c FROM co_chat WHERE rowid >= ?')
         .get(chatStart).c;
     }
+    totalChatAllTime = db.prepare('SELECT COUNT(*) AS c FROM co_chat').get().c;
 
     db.close();
     const topCounts = (counts) =>
@@ -236,6 +238,7 @@ if (!isMainThread) {
       totalBlocks,
       totalBlocksPlaced,
       totalMobKills,
+      totalChatAllTime,
       topBrokenBlocks: topCounts(brokenBlockTotals),
       topPlacedBlocks: topCounts(placedBlockTotals),
       topMobTypes: topCounts(mobTypeTotals),
@@ -332,6 +335,9 @@ function loadCacheFromFile() {
       ) {
         parsed.data.mobPlayersReady = Array.isArray(parsed.data.mobPlayers);
         parsed.data.mobPlayers = Array.isArray(parsed.data.mobPlayers) ? parsed.data.mobPlayers : [];
+        parsed.data.totalChatMessagesAllTime = Number.isSafeInteger(parsed.data.totalChatMessagesAllTime)
+          ? parsed.data.totalChatMessagesAllTime
+          : null;
         parsed.data.topBrokenBlocks = Array.isArray(parsed.data.topBrokenBlocks) ? parsed.data.topBrokenBlocks : [];
         parsed.data.topPlacedBlocks = Array.isArray(parsed.data.topPlacedBlocks) ? parsed.data.topPlacedBlocks : [];
         parsed.data.topMobTypes = Array.isArray(parsed.data.topMobTypes) ? parsed.data.topMobTypes : [];
@@ -396,6 +402,7 @@ function updateCache() {
         lifetimeTopMobs: lifetimeMobStats?.topMobs ?? [],
         lifetimeMobTypesReady: lifetimeMobStats !== null,
         totalChatMessages: m.totalChat,
+        totalChatMessagesAllTime: m.totalChatAllTime,
         topBlocks: TOP_BLOCKS,
         topMobs: TOP_BLOCKS,
         mobPlayersReady: true,
