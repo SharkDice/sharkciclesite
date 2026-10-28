@@ -218,7 +218,7 @@ function PlaytimeLeaderboard({
                     <span className="font-semibold tabular-nums">{formatPlaytime(player.minutes)}</span>
                     {showTotalMinutes && (
                       <span className="block text-xs text-muted-foreground">
-                        {player.minutes.toLocaleString()} total minutes
+                        {player.minutes.toLocaleString()} total minutes · {Math.round(player.minutes / 60).toLocaleString()} total hours
                       </span>
                     )}
                     {!chatMessagesByPlayer && (
