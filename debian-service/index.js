@@ -68,6 +68,9 @@ if (!isMainThread) {
     let totalBlocks = 0;
     let totalBlocksPlaced = 0;
     let totalMobKills = 0;
+    const brokenBlockTotals = new Map();
+    const placedBlockTotals = new Map();
+    const mobTypeTotals = new Map();
     const players = [];
     const builders = [];
     const mobPlayers = [];
@@ -130,6 +133,7 @@ if (!isMainThread) {
         const mob = entityNames.get(Number(row.type));
         if (!name || !mob) continue;
 
+        mobTypeTotals.set(mob, (mobTypeTotals.get(mob) || 0) + row.c);
         let player = mobPlayersByName.get(name);
         if (!player) {
           player = { name, totalKills: 0, mobs: [] };
@@ -162,13 +166,15 @@ if (!isMainThread) {
       for (const r of brokenRows) {
         const name = names.get(r.user);
         if (!name) continue; // not a real player
-        let p = byPlayer.get(name);
-        if (!p) {
-          p = { name, totalBroken: 0, blocks: [] };
-          byPlayer.set(name, p);
+        const material = materials.get(r.type) || 'unknown';
+        brokenBlockTotals.set(material, (brokenBlockTotals.get(material) || 0) + r.c);
+        let player = byPlayer.get(name);
+        if (!player) {
+          player = { name, totalBroken: 0, blocks: [] };
+          byPlayer.set(name, player);
         }
-        p.totalBroken += r.c;
-        p.blocks.push({ material: materials.get(r.type) || 'unknown', count: r.c });
+        player.totalBroken += r.c;
+        player.blocks.push({ material, count: r.c });
       }
 
       const all = [...byPlayer.values()].sort((a, b) => b.totalBroken - a.totalBroken);
@@ -191,13 +197,15 @@ if (!isMainThread) {
       for (const r of placedRows) {
         const name = names.get(r.user);
         if (!name) continue; // not a real player
-        let b = byBuilderMap.get(name);
-        if (!b) {
-          b = { name, totalPlaced: 0, blocks: [] };
-          byBuilderMap.set(name, b);
+        const material = materials.get(r.type) || 'unknown';
+        placedBlockTotals.set(material, (placedBlockTotals.get(material) || 0) + r.c);
+        let builder = byBuilderMap.get(name);
+        if (!builder) {
+          builder = { name, totalPlaced: 0, blocks: [] };
+          byBuilderMap.set(name, builder);
         }
-        b.totalPlaced += r.c;
-        b.blocks.push({ material: materials.get(r.type) || 'unknown', count: r.c });
+        builder.totalPlaced += r.c;
+        builder.blocks.push({ material, count: r.c });
       }
 
       const allBuilders = [...byBuilderMap.values()].sort((a, b) => b.totalPlaced - a.totalPlaced);
@@ -219,7 +227,23 @@ if (!isMainThread) {
     }
 
     db.close();
-    parentPort.postMessage({ ok: true, totalBlocks, totalBlocksPlaced, totalMobKills, mobPlayers, totalChat, players, builders });
+    const topCounts = (counts) =>
+      [...counts].map(([name, count]) => ({ name, count }))
+        .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+        .slice(0, 5);
+    parentPort.postMessage({
+      ok: true,
+      totalBlocks,
+      totalBlocksPlaced,
+      totalMobKills,
+      topBrokenBlocks: topCounts(brokenBlockTotals),
+      topPlacedBlocks: topCounts(placedBlockTotals),
+      topMobTypes: topCounts(mobTypeTotals),
+      mobPlayers,
+      totalChat,
+      players,
+      builders,
+    });
   } catch (err) {
     parentPort.postMessage({ ok: false, error: err.message });
   }
@@ -308,6 +332,9 @@ function loadCacheFromFile() {
       ) {
         parsed.data.mobPlayersReady = Array.isArray(parsed.data.mobPlayers);
         parsed.data.mobPlayers = Array.isArray(parsed.data.mobPlayers) ? parsed.data.mobPlayers : [];
+        parsed.data.topBrokenBlocks = Array.isArray(parsed.data.topBrokenBlocks) ? parsed.data.topBrokenBlocks : [];
+        parsed.data.topPlacedBlocks = Array.isArray(parsed.data.topPlacedBlocks) ? parsed.data.topPlacedBlocks : [];
+        parsed.data.topMobTypes = Array.isArray(parsed.data.topMobTypes) ? parsed.data.topMobTypes : [];
         parsed.data.topMobs = Number(parsed.data.topMobs) || TOP_BLOCKS;
         parsed.data.lifetimeMobTypesReady =
           parsed.data.lifetimeMobTypesReady === true &&
@@ -361,6 +388,9 @@ function updateCache() {
         totalBlocksBroken: m.totalBlocks,
         totalBlocksPlaced: m.totalBlocksPlaced,
         totalMobKills: m.totalMobKills,
+        topBrokenBlocks: m.topBrokenBlocks,
+        topPlacedBlocks: m.topPlacedBlocks,
+        topMobTypes: m.topMobTypes,
         totalMobKillsAllTime: lifetimeMobStats?.total ?? null,
         mobKillsRollupReady: lifetimeMobStats !== null,
         lifetimeTopMobs: lifetimeMobStats?.topMobs ?? [],

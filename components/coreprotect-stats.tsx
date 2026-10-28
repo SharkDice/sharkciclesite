@@ -55,6 +55,9 @@ interface StatsData {
     mobKillsRollupReady: boolean
     lifetimeMobTypesReady: boolean
     lifetimeTopMobs: LifetimeMobStats[]
+    topBrokenBlocks: CommunityTopStat[]
+    topPlacedBlocks: CommunityTopStat[]
+    topMobTypes: CommunityTopStat[]
     totalChatMessages: number
     topBlocks: number
     topMobs: number
@@ -77,6 +80,20 @@ interface LifetimeLookupResponse {
   hasMore: boolean
   rows: LifetimeBlockRow[]
   error?: string
+}
+
+interface CommunityBlockTotals {
+  broken: number
+  placed: number
+  mobKills: number | null
+  topBrokenBlocks: CommunityTopStat[]
+  topPlacedBlocks: CommunityTopStat[]
+  topMobTypes: CommunityTopStat[]
+}
+
+interface CommunityTopStat {
+  name: string
+  count: number
 }
 
 // "deepslate_iron_ore" -> "Deepslate Iron Ore"
@@ -522,6 +539,279 @@ function LifetimeBlockStats({ action }: { action: 'broken' | 'placed' }) {
   )
 }
 
+function BlockContributionCard({
+  totals,
+  period,
+}: {
+  totals: CommunityBlockTotals
+  period: 'last 7 days' | 'lifetime'
+}) {
+  const [activeDetail, setActiveDetail] = useState<string | null>(null)
+  const [pinnedDetail, setPinnedDetail] = useState<string | null>(null)
+  const categories = [
+    { key: 'broken', label: 'Blocks Broken', value: totals.broken, top: totals.topBrokenBlocks, color: 'bg-blue-500', textColor: 'text-blue-500', icon: Pickaxe },
+    { key: 'placed', label: 'Blocks Placed', value: totals.placed, top: totals.topPlacedBlocks, color: 'bg-green-500', textColor: 'text-green-500', icon: Blocks },
+    ...(totals.mobKills === null
+      ? []
+      : [{ key: 'mobs', label: 'Mob Kills', value: totals.mobKills, top: totals.topMobTypes, color: 'bg-red-500', textColor: 'text-red-500', icon: Skull }]),
+  ]
+  const activityTotal = categories.reduce((sum, category) => sum + category.value, 0)
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Community Activity</CardTitle>
+        <p className="text-sm text-muted-foreground">Blocks broken, blocks placed, and mob kills by the community {period}</p>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div
+          className="space-y-4"
+          onMouseLeave={() => {
+            if (pinnedDetail === null) setActiveDetail(null)
+          }}
+        >
+        <div className="flex h-7 w-full rounded-full bg-muted">
+          {categories.map((category) => {
+            const percentage = activityTotal > 0 ? (category.value / activityTotal) * 100 : 0
+
+            return (
+              <div
+                key={category.key}
+                className="group relative h-full first:rounded-l-full last:rounded-r-full"
+                style={{ width: `${percentage}%` }}
+              >
+                <button
+                  type="button"
+                  className={`relative flex h-full w-full items-center justify-center overflow-hidden ${category.color} transition-opacity hover:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground`}
+                  aria-label={`${category.label}: ${category.value.toLocaleString()}, ${percentage.toFixed(1)} percent. Show top five.`}
+                  aria-expanded={activeDetail === category.key}
+                  style={{
+                    backgroundImage: 'repeating-linear-gradient(135deg, rgba(255,255,255,0.22) 0px, rgba(255,255,255,0.22) 3px, transparent 3px, transparent 8px)',
+                  }}
+                  onMouseEnter={() => {
+                    if (pinnedDetail === null) setActiveDetail(category.key)
+                  }}
+                  onFocus={() => setActiveDetail(category.key)}
+                  onBlur={() => {
+                    if (pinnedDetail === null) setActiveDetail(null)
+                  }}
+                  onClick={() => {
+                    if (pinnedDetail === category.key) {
+                      setPinnedDetail(null)
+                      setActiveDetail(null)
+                    } else {
+                      setPinnedDetail(category.key)
+                      setActiveDetail(category.key)
+                    }
+                  }}
+                >
+                  {percentage >= 8 && (
+                    <category.icon className="h-4 w-4 shrink-0 text-white drop-shadow" aria-hidden="true" />
+                  )}
+                </button>
+              </div>
+            )
+          })}
+        </div>
+        <div className="grid gap-3 sm:grid-cols-3">
+          {categories.map((category) => {
+            const Icon = category.icon
+            const percentage = activityTotal > 0 ? (category.value / activityTotal) * 100 : 0
+            return (
+              <button
+                key={category.key}
+                type="button"
+                className="flex items-start gap-2 rounded-md text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground"
+                aria-expanded={activeDetail === category.key}
+                onMouseEnter={() => {
+                  if (pinnedDetail === null) setActiveDetail(category.key)
+                }}
+                onFocus={() => setActiveDetail(category.key)}
+                onBlur={() => {
+                  if (pinnedDetail === null) setActiveDetail(null)
+                }}
+                onClick={() => {
+                  if (pinnedDetail === category.key) {
+                    setPinnedDetail(null)
+                    setActiveDetail(null)
+                  } else {
+                    setPinnedDetail(category.key)
+                    setActiveDetail(category.key)
+                  }
+                }}
+              >
+                <Icon className={`mt-1 h-4 w-4 shrink-0 ${category.textColor}`} />
+                <div className="min-w-0">
+                  <p className="text-sm text-muted-foreground">{category.label}</p>
+                  <p className="font-semibold tabular-nums">{category.value.toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground">{percentage.toFixed(1)}% of total activity</p>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+        {activeDetail && (() => {
+          const category = categories.find((item) => item.key === activeDetail)
+          if (!category) return null
+          const Icon = category.icon
+
+          return (
+            <div className="rounded-lg border bg-popover p-3 text-popover-foreground shadow-sm" role="status">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="flex items-center gap-2 text-sm font-semibold">
+                  <Icon className={`h-4 w-4 ${category.textColor}`} />
+                  Top 5 {category.label}
+                </p>
+                {pinnedDetail === category.key && (
+                  <button
+                    type="button"
+                    className="text-xs text-muted-foreground underline"
+                    onClick={() => {
+                      setPinnedDetail(null)
+                      setActiveDetail(null)
+                    }}
+                  >
+                    Close
+                  </button>
+                )}
+              </div>
+              {category.top.length > 0 ? (
+                <ol className="space-y-1.5">
+                  {category.top.slice(0, 5).map((item, index) => (
+                    <li key={item.name} className="flex items-center justify-between gap-3 text-sm">
+                      <span className="min-w-0 truncate">
+                        <span className="mr-2 text-muted-foreground">{index + 1}.</span>
+                        {formatMaterial(item.name)}
+                      </span>
+                      <span className="shrink-0 font-medium tabular-nums">{item.count.toLocaleString()}</span>
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <p className="text-sm text-muted-foreground">Top five data is not available yet.</p>
+              )}
+            </div>
+          )
+        })()}
+        </div>
+        {totals.mobKills === null && (
+          <p className="text-sm text-muted-foreground">Lifetime mob-kill data is still being prepared.</p>
+        )}
+        <p className="text-xs text-muted-foreground">Hover over a bar segment, or tap it, to see the top five.</p>
+      </CardContent>
+    </Card>
+  )
+}
+
+function CommunityLifetimeStats({
+  mobKills,
+  topMobs,
+}: {
+  mobKills: number | null
+  topMobs: LifetimeMobStats[]
+}) {
+  const [totals, setTotals] = useState<Omit<CommunityBlockTotals, 'mobKills' | 'topMobTypes'> | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const controller = new AbortController()
+
+    async function fetchLifetimeTotals() {
+      try {
+        const totals = { broken: 0, placed: 0 }
+        const allBlocks: LifetimeBlockRow[] = []
+        let offset = 0
+        let hasMore = true
+
+        while (hasMore) {
+          const query = new URLSearchParams({
+            limit: '500',
+            offset: String(offset),
+            sort: 'total',
+          })
+          const response = await fetch(`/api/block-lookup?${query}`, { signal: controller.signal })
+          const data: LifetimeLookupResponse = await response.json()
+
+          if (!response.ok || !data.success) {
+            throw new Error(data.error || 'Failed to load lifetime community block totals')
+          }
+          if (!Array.isArray(data.rows) || typeof data.hasMore !== 'boolean') {
+            throw new Error('The lifetime community block totals response was invalid')
+          }
+          if (data.rows.length === 0 && data.hasMore) {
+            throw new Error('The lifetime community block totals response returned an empty page')
+          }
+
+          for (const row of data.rows) {
+            totals.broken += row.broken
+            totals.placed += row.placed
+          }
+          allBlocks.push(...data.rows)
+          offset += data.rows.length
+          hasMore = data.hasMore
+        }
+
+        if (!controller.signal.aborted) {
+          setTotals({
+            ...totals,
+            topBrokenBlocks: allBlocks
+              .filter((block) => block.broken > 0)
+              .sort((a, b) => b.broken - a.broken || a.block.localeCompare(b.block))
+              .slice(0, 5)
+              .map((block) => ({ name: block.block, count: block.broken })),
+            topPlacedBlocks: allBlocks
+              .filter((block) => block.placed > 0)
+              .sort((a, b) => b.placed - a.placed || a.block.localeCompare(b.block))
+              .slice(0, 5)
+              .map((block) => ({ name: block.block, count: block.placed })),
+          })
+        }
+      } catch (fetchError) {
+        if (!controller.signal.aborted) {
+          setError(fetchError instanceof Error ? fetchError.message : 'Failed to load lifetime community block totals')
+        }
+      } finally {
+        if (!controller.signal.aborted) setLoading(false)
+      }
+    }
+
+    fetchLifetimeTotals()
+    return () => controller.abort()
+  }, [])
+
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="flex items-center justify-center gap-2 py-12">
+          <RefreshCw className="h-5 w-5 animate-spin" />
+          <p>Loading lifetime community statistics...</p>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (error) {
+    return (
+      <Alert variant="destructive">
+        <AlertCircle className="h-4 w-4" />
+        <AlertDescription>{error}</AlertDescription>
+      </Alert>
+    )
+  }
+
+  return totals ? (
+    <BlockContributionCard
+      totals={{
+        ...totals,
+        mobKills,
+        topMobTypes: topMobs.map(({ mob, kills }) => ({ name: mob, count: kills })),
+      }}
+      period="lifetime"
+    />
+  ) : null
+}
+
 export function CoreProtectStats() {
   const [stats, setStats] = useState<StatsData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -845,20 +1135,55 @@ export function CoreProtectStats() {
         </TabsContent>
 
         <TabsContent value="community">
-          {stats?.data ? (
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Chat Messages</CardTitle>
-                <MessageSquare className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.data.totalChatMessages.toLocaleString()}</div>
-                <p className="text-xs text-muted-foreground">Messages sent in the last 7 days</p>
-              </CardContent>
-            </Card>
-          ) : (
-            <StatsUnavailable loading={loading} />
-          )}
+          <Tabs defaultValue="seven-days" className="space-y-6">
+            <TabsList className="h-auto flex-wrap justify-start gap-1 rounded-xl border bg-card p-1">
+              <TabsTrigger value="seven-days">Last 7 days</TabsTrigger>
+              <TabsTrigger value="lifetime">Lifetime</TabsTrigger>
+            </TabsList>
+            <TabsContent value="seven-days" className="space-y-6">
+              {stats?.data ? (
+                <>
+                  <BlockContributionCard
+                    totals={{
+                      broken: stats.data.totalBlocksBroken,
+                      placed: stats.data.totalBlocksPlaced,
+                      mobKills: stats.data.totalMobKills,
+                      topBrokenBlocks: stats.data.topBrokenBlocks ?? [],
+                      topPlacedBlocks: stats.data.topPlacedBlocks ?? [],
+                      topMobTypes: stats.data.topMobTypes ?? [],
+                    }}
+                    period="last 7 days"
+                  />
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Chat Messages</CardTitle>
+                      <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{stats.data.totalChatMessages.toLocaleString()}</div>
+                      <p className="text-xs text-muted-foreground">Messages sent in the last 7 days</p>
+                    </CardContent>
+                  </Card>
+                </>
+              ) : (
+                <StatsUnavailable loading={loading} />
+              )}
+            </TabsContent>
+            <TabsContent value="lifetime">
+              {stats?.data ? (
+                <CommunityLifetimeStats
+                  mobKills={
+                    stats.data.mobKillsRollupReady
+                      ? stats.data.totalMobKillsAllTime
+                      : null
+                  }
+                  topMobs={stats.data.lifetimeMobTypesReady ? stats.data.lifetimeTopMobs : []}
+                />
+              ) : (
+                <StatsUnavailable loading={loading} />
+              )}
+            </TabsContent>
+          </Tabs>
         </TabsContent>
 
         <TabsContent value="other">
