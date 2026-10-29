@@ -559,16 +559,54 @@ const OVERVIEW_TOTAL_METRIC = {
 
 app.get('/lookup', (req, res) => {
   const player = (req.query.player || '').toString().trim();
+  const playerExact = (req.query.playerExact || '').toString().trim();
   const block = (req.query.block || '').toString().trim();
+  const view = (req.query.view || '').toString();
   const limit = Math.min(Number(req.query.limit) || 100, 500);
   const offset = Math.max(Number(req.query.offset) || 0, 0);
   const sortKey = ['total', 'broken', 'placed'].includes((req.query.sort || '').toString())
     ? req.query.sort.toString()
     : 'total';
 
-  // No filters: "top blocks broken/placed overall, and by who" - rank materials by
-  // their community-wide total and surface the top contributing player per material.
-  if (!player && !block) {
+  const where = [];
+  const params = [];
+  if (playerExact) {
+    where.push('u.name = ? COLLATE NOCASE');
+    params.push(playerExact);
+  } else if (player) {
+    where.push("u.name LIKE ? ESCAPE '\\' COLLATE NOCASE");
+    params.push(`%${player.replace(/[\\%_]/g, '\\$&')}%`);
+  }
+  if (block) {
+    where.push('m.name = ?');
+    params.push(block.toLowerCase().replace(/ /g, '_'));
+  }
+
+  if (view === 'players') {
+    try {
+      const rows = statsDb.prepare(`
+        SELECT u.name AS player,
+               SUM(CASE WHEN b.action = 0 THEN b.count ELSE 0 END) AS broken,
+               SUM(CASE WHEN b.action = 1 THEN b.count ELSE 0 END) AS placed,
+               COUNT(DISTINCT b.material_id) AS blockTypes
+        FROM block_stats b
+        JOIN users u ON u.id = b.user_id
+        JOIN materials m ON m.id = b.material_id
+        ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+        GROUP BY b.user_id
+        ORDER BY ${LOOKUP_SORTS[sortKey]}
+        LIMIT ? OFFSET ?
+      `).all(...params, limit + 1, offset);
+
+      res.setHeader('Cache-Control', 'public, max-age=60');
+      return res.json({ success: true, hasMore: rows.length > limit, rows: rows.slice(0, limit) });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  }
+
+  // Preserve the community-wide block overview for existing statistics clients.
+  if (!player && !playerExact && !block) {
     try {
       const rows = statsDb.prepare(`
         WITH user_totals AS (
@@ -605,10 +643,6 @@ app.get('/lookup', (req, res) => {
   }
 
   const orderBy = LOOKUP_SORTS[sortKey];
-  const where = [];
-  const params = [];
-  if (player) { where.push('u.name = ? COLLATE NOCASE'); params.push(player); }
-  if (block) { where.push('m.name = ?'); params.push(block.toLowerCase().replace(/ /g, '_')); }
 
   try {
     const rows = statsDb.prepare(`

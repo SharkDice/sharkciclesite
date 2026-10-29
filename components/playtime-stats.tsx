@@ -5,6 +5,7 @@ import { AlertCircle, Clock3, RefreshCw, Trophy } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { BlockIcon } from '@/components/block-lookup'
 
 interface PlaytimePlayer {
   name: string
@@ -43,6 +44,10 @@ function formatPlaytime(minutes: number) {
 
 function PlayerAvatar({ name, size = 32 }: { name: string; size?: number }) {
   const [failed, setFailed] = useState(false)
+
+  if (name.trim().toUpperCase() === 'TNT') {
+    return <BlockIcon material="tnt" size={size} />
+  }
 
   if (failed) {
     return (

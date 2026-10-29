@@ -170,6 +170,31 @@ const RANK_STYLES = [
   'bg-amber-600 text-amber-50', // 3rd
 ]
 
+function PlayerAvatar({ name, size = 48 }: { name: string; size?: number }) {
+  if (name.trim().toUpperCase() === 'TNT') {
+    return <BlockIcon material="tnt" size={size} />
+  }
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={`https://minotar.net/avatar/${encodeURIComponent(name)}/${size}`}
+      alt=""
+      width={size}
+      height={size}
+      className="rounded-md"
+      loading="lazy"
+      onError={(e) => {
+        const img = e.currentTarget
+        if (!img.dataset.fallback) {
+          img.dataset.fallback = '1'
+          img.src = `https://mc-heads.net/avatar/${encodeURIComponent(name)}/${size}`
+        }
+      }}
+    />
+  )
+}
+
 function PlayerCard({ player, rank }: { player: PlayerStats; rank: number }) {
   const rankStyle = RANK_STYLES[rank - 1] ?? 'bg-muted text-muted-foreground'
 
@@ -178,23 +203,7 @@ function PlayerCard({ player, rank }: { player: PlayerStats; rank: number }) {
       <CardHeader className="pb-3">
         <div className="flex items-center gap-3">
           <div className="relative shrink-0">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={`https://minotar.net/avatar/${encodeURIComponent(player.name)}/48`}
-              alt=""
-              width={48}
-              height={48}
-              className="rounded-md"
-              loading="lazy"
-              onError={(e) => {
-                // If the first skin service is down, fall back to a second one (once)
-                const img = e.currentTarget
-                if (!img.dataset.fallback) {
-                  img.dataset.fallback = '1'
-                  img.src = `https://mc-heads.net/avatar/${encodeURIComponent(player.name)}/48`
-                }
-              }}
-            />
+            <PlayerAvatar name={player.name} />
             <span
               className={`absolute -top-2 -left-2 flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold shadow ${rankStyle}`}
             >
@@ -244,22 +253,7 @@ function BuilderCard({ builder, rank }: { builder: BuilderStats; rank: number })
       <CardHeader className="pb-3">
         <div className="flex items-center gap-3">
           <div className="relative shrink-0">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={`https://minotar.net/avatar/${encodeURIComponent(builder.name)}/48`}
-              alt=""
-              width={48}
-              height={48}
-              className="rounded-md"
-              loading="lazy"
-              onError={(e) => {
-                const img = e.currentTarget
-                if (!img.dataset.fallback) {
-                  img.dataset.fallback = '1'
-                  img.src = `https://mc-heads.net/avatar/${encodeURIComponent(builder.name)}/48`
-                }
-              }}
-            />
+            <PlayerAvatar name={builder.name} />
             <span
               className={`absolute -top-2 -left-2 flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold shadow ${rankStyle}`}
             >
@@ -331,22 +325,7 @@ function MobPlayerCard({ player, rank }: { player: MobPlayerStats; rank: number 
       <CardHeader className="pb-3">
         <div className="flex items-center gap-3">
           <div className="relative shrink-0">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={`https://minotar.net/avatar/${encodeURIComponent(player.name)}/48`}
-              alt=""
-              width={48}
-              height={48}
-              className="rounded-md"
-              loading="lazy"
-              onError={(e) => {
-                const img = e.currentTarget
-                if (!img.dataset.fallback) {
-                  img.dataset.fallback = '1'
-                  img.src = `https://mc-heads.net/avatar/${encodeURIComponent(player.name)}/48`
-                }
-              }}
-            />
+            <PlayerAvatar name={player.name} />
             <span
               className={`absolute -top-2 -left-2 flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold shadow ${rankStyle}`}
             >

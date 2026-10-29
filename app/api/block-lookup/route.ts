@@ -7,10 +7,10 @@ export async function GET(request: NextRequest) {
   try {
     const DEBIAN_SERVICE_URL = 'http://play.sharkcicle.com:3001'
 
-    // Forward the player/block/limit/offset/sort query params straight through
+    // Forward the lookup mode and filters to the CoreProtect service.
     const incoming = request.nextUrl.searchParams
     const qs = new URLSearchParams()
-    for (const key of ['player', 'block', 'limit', 'offset', 'sort']) {
+    for (const key of ['player', 'playerExact', 'block', 'limit', 'offset', 'sort', 'view']) {
       const value = incoming.get(key)
       if (value) qs.set(key, value)
     }
