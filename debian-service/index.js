@@ -90,14 +90,14 @@ if (!isMainThread) {
       }
       const worldFilter = `AND +wid IN (${worldIds.join(',')})`;
 
-      // Fire, creepers, leaf decay, etc. are stored by CoreProtect as "#name"
-      // entries, so skipping those leaves only real players. TNT ("#tnt...") is
-      // the exception: it is kept and shown under the single name "TNT".
+      // Environmental sources use "#name" entries. Keep TNT and creeper events
+      // under dedicated names; ignore other sources such as fire and leaf decay.
       const names = new Map();
       const playerIds = [];
       for (const u of db.prepare('SELECT rowid AS id, user FROM co_user').all()) {
         if (!u.user) continue;
         if (u.user.toLowerCase().startsWith('#tnt')) names.set(u.id, 'TNT');
+        else if (u.user.toLowerCase().startsWith('#creeper')) names.set(u.id, 'Creeper');
         else if (!u.user.startsWith('#')) {
           names.set(u.id, u.user);
           playerIds.push(Number(u.id));
@@ -520,8 +520,18 @@ app.get('/stats', (req, res) => {
   if (!cachedStats) {
     return res.status(503).json({ success: false, error: 'Cache not ready yet, please try again shortly' });
   }
+  const lifetimeMobStats = getLifetimeMobStats();
   res.setHeader('Cache-Control', 'public, max-age=60');
-  res.json(cachedStats);
+  res.json({
+    ...cachedStats,
+    data: {
+      ...cachedStats.data,
+      totalMobKillsAllTime: lifetimeMobStats?.total ?? null,
+      mobKillsRollupReady: lifetimeMobStats !== null,
+      lifetimeTopMobs: lifetimeMobStats?.topMobs ?? [],
+      lifetimeMobTypesReady: lifetimeMobStats !== null,
+    },
+  });
 });
 
 /* ---------------- Lifetime lookup (reads stats.db) ---------------- */

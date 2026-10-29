@@ -66,11 +66,29 @@ async function main() {
   if (ignored.length) console.log('Ignoring worlds: ' + ignored.join(', '));
 
   // ---- Safety check: never mix data built with different settings ----
-  const filterSig = `worlds=${worldIds.join(',')};tnt=1`;
+  const filterSig = `worlds=${worldIds.join(',')};tnt=1;creeper=1`;
   const cfg = stats.prepare("SELECT value FROM config WHERE key = 'filter'").get();
   const hasProgress = stats.prepare("SELECT 1 FROM meta WHERE key = 'last_rowid'").get();
+  const hasMobProgress = stats.prepare(
+    "SELECT COUNT(*) AS count FROM meta WHERE key IN ('mob_last_rowid', 'mob_type_last_rowid')"
+  ).get().count === 2;
+  const mobHistoryIncomplete = Boolean(
+    stats.prepare("SELECT 1 FROM meta WHERE key = 'mob_history_incomplete'").get()
+  );
+  let backfillCreepers = false;
+  let skipLegacyMobBackfill = false;
   if (cfg && cfg.value !== filterSig) {
-    throw new Error('This stats database was built with different world settings. Rebuild it from scratch.');
+    const previousFilterSig = `worlds=${worldIds.join(',')};tnt=1`;
+    if (cfg.value === previousFilterSig) {
+      backfillCreepers = true;
+      skipLegacyMobBackfill = !hasMobProgress;
+      console.log('Adding creeper activity without rebuilding existing lifetime block statistics...');
+      if (skipLegacyMobBackfill) {
+        console.log('Legacy stats database has no lifetime mob progress; skipping its full-history mob scan.');
+      }
+    } else {
+      throw new Error('This stats database was built with different world settings. Rebuild it from scratch.');
+    }
   }
   if (!cfg && hasProgress) {
     throw new Error(
@@ -88,10 +106,11 @@ async function main() {
     stats.prepare("INSERT INTO config(key, value) VALUES ('mob_kill_filter', ?)").run(mobFilterSig);
   }
 
-  // ---- Lookup tables. Real players count as themselves; every "#tnt..." source is merged into one "TNT" entry.
-  // Other "#" sources (fire, creepers, leaf decay...) are skipped.
+  // ---- Lookup tables. Real players count as themselves; TNT and creeper sources
+  // are merged into dedicated entries. Other "#" sources are skipped.
   const userMap = new Map(); // CoreProtect user id -> id stored in stats.db
   const playerUserIds = [];
+  const creeperUserIds = [];
   const upUser = stats.prepare('INSERT OR REPLACE INTO users(id, name) VALUES (?, ?)');
   const upMat = stats.prepare('INSERT OR REPLACE INTO materials(id, name) VALUES (?, ?)');
   stats.transaction(() => {
@@ -99,6 +118,10 @@ async function main() {
     for (const u of cp.prepare('SELECT rowid AS id, user FROM co_user').all()) {
       if (!u.user) continue;
       if (u.user.toLowerCase().startsWith('#tnt')) { tnt.push(u.id); continue; }
+      if (u.user.toLowerCase().startsWith('#creeper')) {
+        creeperUserIds.push(Number(u.id));
+        continue;
+      }
       if (u.user.startsWith('#')) continue;
       playerUserIds.push(Number(u.id));
       userMap.set(u.id, u.id);
@@ -108,6 +131,11 @@ async function main() {
       const main = Math.min(...tnt); // lowest id is stable over time
       for (const id of tnt) userMap.set(id, main);
       upUser.run(main, 'TNT');
+    }
+    if (creeperUserIds.length) {
+      const main = Math.min(...creeperUserIds);
+      for (const id of creeperUserIds) userMap.set(id, main);
+      upUser.run(main, 'Creeper');
     }
     for (const m of cp.prepare('SELECT id, material FROM co_material_map').all()) {
       upMat.run(m.id, m.material.replace(/^minecraft:/, ''));
@@ -129,10 +157,14 @@ async function main() {
   console.log(`Rowids run from ${bounds.lo.toLocaleString()} to ${bounds.hi.toLocaleString()}`);
 
   stats.prepare("INSERT OR IGNORE INTO meta(key, value) VALUES ('last_rowid', ?)").run(bounds.lo - 1);
-  stats.prepare("INSERT OR IGNORE INTO meta(key, value) VALUES ('mob_last_rowid', ?)").run(bounds.lo - 1);
-  stats.prepare("INSERT OR IGNORE INTO meta(key, value) VALUES ('mob_type_last_rowid', ?)").run(bounds.lo - 1);
+  const initialMobRowid = skipLegacyMobBackfill ? bounds.hi : bounds.lo - 1;
+  stats.prepare("INSERT OR IGNORE INTO meta(key, value) VALUES ('mob_last_rowid', ?)").run(initialMobRowid);
+  stats.prepare("INSERT OR IGNORE INTO meta(key, value) VALUES ('mob_type_last_rowid', ?)").run(initialMobRowid);
   stats.prepare("INSERT OR IGNORE INTO meta(key, value) VALUES ('mob_kills_ready', 0)").run();
   stats.prepare("INSERT OR IGNORE INTO meta(key, value) VALUES ('mob_kill_types_ready', 0)").run();
+  if (skipLegacyMobBackfill) {
+    stats.prepare("INSERT OR REPLACE INTO meta(key, value) VALUES ('mob_history_incomplete', 1)").run();
+  }
   const getBlockLast = stats.prepare("SELECT value FROM meta WHERE key = 'last_rowid'");
   const setBlockLast = stats.prepare("UPDATE meta SET value = ? WHERE key = 'last_rowid'");
   const getMobLast = stats.prepare("SELECT value FROM meta WHERE key = 'mob_last_rowid'");
@@ -152,13 +184,46 @@ async function main() {
     ON CONFLICT(mob) DO UPDATE SET kills = kills + excluded.kills
   `);
 
+  if (backfillCreepers) {
+    const finishBackfill = stats.transaction((rows) => {
+      for (const row of rows) {
+        const userId = userMap.get(row.user);
+        if (userId !== undefined) upsert.run(row.day, userId, row.type, row.action, row.c);
+      }
+      stats.prepare("UPDATE config SET value = ? WHERE key = 'filter'").run(filterSig);
+    });
+
+    if (creeperUserIds.length) {
+      const creeperQuery = `
+        SELECT date(time, 'unixepoch') AS day, user, type, action, COUNT(*) AS c
+        FROM co_block
+        WHERE user IN (${creeperUserIds.join(',')})
+          AND action IN (0, 1)
+          AND wid IN (${worldIds.join(',')})
+        GROUP BY day, user, type, action
+      `;
+      const plan = cp.prepare(`EXPLAIN QUERY PLAN ${creeperQuery}`).all();
+      console.log(`Creeper backfill query plan: ${JSON.stringify(plan)}`);
+      const started = Date.now();
+      const rows = cp.prepare(creeperQuery).all();
+      console.log(`Creeper backfill query completed in ${((Date.now() - started) / 1000).toFixed(1)}s (${rows.length} groups).`);
+      finishBackfill(rows);
+    } else {
+      console.log('No CoreProtect creeper actors found; skipping historical backfill.');
+      finishBackfill([]);
+    }
+  }
+
   // action 0 = broken, 1 = placed. wid = world id (only the worlds chosen above)
-  const chunkQuery = cp.prepare(`
+  const chunkQuerySql = `
     SELECT date(time, 'unixepoch') AS day, user, type, action, COUNT(*) AS c
-    FROM co_block
+    FROM co_block NOT INDEXED
     WHERE rowid > ? AND rowid <= ? AND action IN (0, 1) AND wid IN (${worldIds.join(',')})
     GROUP BY day, user, type, action
-  `);
+  `;
+  const chunkQuery = cp.prepare(chunkQuerySql);
+  const chunkPlan = cp.prepare(`EXPLAIN QUERY PLAN ${chunkQuerySql}`).all(bounds.lo, bounds.hi);
+  console.log(`Block rollup query plan: ${JSON.stringify(chunkPlan)}`);
   const entityNames = new Map();
   for (const entity of cp.prepare('SELECT id, entity FROM co_entity_map').all()) {
     const name = String(entity.entity).toLowerCase().replace(/^minecraft:/, '');
@@ -219,17 +284,28 @@ async function main() {
   const t0 = Date.now();
   let chunks = 0;
 
-  while ((blockLast < target || mobLast < target || mobTypeLast < target) && chunks < MAX_CHUNKS) {
+  while (
+    (blockLast < target || (!mobHistoryIncomplete && (mobLast < target || mobTypeLast < target))) &&
+    chunks < MAX_CHUNKS
+  ) {
     const from = Math.min(
       blockLast < target ? blockLast : target,
-      mobLast < target ? mobLast : target,
-      mobTypeLast < target ? mobTypeLast : target
+      !mobHistoryIncomplete && mobLast < target ? mobLast : target,
+      !mobHistoryIncomplete && mobTypeLast < target ? mobTypeLast : target
     );
     const to = Math.min(from + CHUNK, target);
     const blockFrom = blockLast < to ? blockLast : null;
-    const mobFrom = mobLast < to ? mobLast : null;
-    const mobTypeFrom = mobTypeLast < to ? mobTypeLast : null;
-    const blockRows = blockFrom === null ? [] : chunkQuery.all(blockFrom, to);
+    const mobFrom = !mobHistoryIncomplete && mobLast < to ? mobLast : null;
+    const mobTypeFrom = !mobHistoryIncomplete && mobTypeLast < to ? mobTypeLast : null;
+    let blockRows = [];
+    if (blockFrom !== null) {
+      const queryStarted = Date.now();
+      blockRows = chunkQuery.all(blockFrom, to);
+      console.log(
+        `Block batch query completed in ${((Date.now() - queryStarted) / 1000).toFixed(1)}s ` +
+        `(${blockRows.length} groups; rowids ${blockFrom + 1}-${to}).`
+      );
+    }
     let mobRows = [];
     let mobTypeRows = [];
     if (mobFrom !== null) {
@@ -256,19 +332,29 @@ async function main() {
     if (mobFrom !== null) mobLast = to;
     if (mobTypeFrom !== null) mobTypeLast = to;
     chunks++;
-    const lowestProgress = Math.min(blockLast, mobLast, mobTypeLast);
+    const lowestProgress = mobHistoryIncomplete
+      ? blockLast
+      : Math.min(blockLast, mobLast, mobTypeLast);
     const pct = (((lowestProgress - bounds.lo) / Math.max(target - bounds.lo, 1)) * 100).toFixed(1);
     console.log(`rowid ${lowestProgress.toLocaleString()} / ${target.toLocaleString()} (${pct}%) - ${((Date.now() - t0) / 1000).toFixed(0)}s elapsed`);
     await sleep(PAUSE_MS);
   }
 
-  if (mobLast >= target) {
+  if (mobLast >= target && !mobHistoryIncomplete && !skipLegacyMobBackfill) {
     stats.prepare("INSERT OR REPLACE INTO meta(key, value) VALUES ('mob_kills_ready', 1)").run();
   }
-  if (mobTypeLast >= target) {
+  if (mobTypeLast >= target && !mobHistoryIncomplete && !skipLegacyMobBackfill) {
     stats.prepare("INSERT OR REPLACE INTO meta(key, value) VALUES ('mob_kill_types_ready', 1)").run();
   }
-  console.log(blockLast >= target && mobLast >= target && mobTypeLast >= target ? 'Caught up.' : 'Stopped early (MAX_CHUNKS).');
+  const caughtUp = blockLast >= target &&
+    (mobHistoryIncomplete || (mobLast >= target && mobTypeLast >= target));
+  console.log(
+    caughtUp
+      ? mobHistoryIncomplete
+        ? 'Block rollup caught up; lifetime mob backfill is incomplete.'
+        : 'Caught up.'
+      : 'Stopped early (MAX_CHUNKS).'
+  );
   cp.close();
   stats.close();
 }

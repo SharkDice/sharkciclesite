@@ -99,16 +99,29 @@ function percentageWidth(value: number, total: number) {
   return Math.min(100, Math.max(0, (value / total) * 100))
 }
 
+function blockTextureUrl(material: string) {
+  const liquid = LIQUID_TEXTURES[material]
+  const texture = liquid ?? blockTextureCandidates(material)[0]
+  return `${MC_ASSETS_BASE}/block/${texture}.png`
+}
+
+function playerTextureUrl(name: string) {
+  if (name.trim().toUpperCase() === 'TNT') return blockTextureUrl('tnt')
+  return `https://minotar.net/avatar/${encodeURIComponent(name)}/16`
+}
+
 function ShareMeter({
   value,
   total,
   color,
   label,
+  patternUrl,
 }: {
   value: number
   total: number
   color: 'bg-blue-500' | 'bg-green-500'
   label: string
+  patternUrl: string
 }) {
   return (
     <span className="flex min-w-0 flex-col justify-center gap-2 self-stretch">
@@ -116,7 +129,7 @@ function ShareMeter({
         {formatPercentage(value, total)}
       </span>
       <span
-        className="h-4 w-full overflow-hidden rounded-full bg-muted"
+        className="relative h-4 w-full overflow-hidden rounded-full bg-muted"
         role="meter"
         aria-label={label}
         aria-valuemin={0}
@@ -124,9 +137,24 @@ function ShareMeter({
         aria-valuenow={percentageWidth(value, total)}
       >
         <span
-          className={`block h-full rounded-full ${color}`}
+          className={`relative block h-full overflow-hidden rounded-full ${color}`}
           style={{ width: `${percentageWidth(value, total)}%` }}
         />
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-y-0 left-0 overflow-hidden rounded-full"
+          style={{ width: `${percentageWidth(value, total)}%` }}
+        >
+          <span
+            className="block h-full w-full"
+            style={{
+              backgroundImage: `url("${patternUrl}")`,
+              backgroundRepeat: 'repeat',
+              backgroundSize: '16px 16px',
+              imageRendering: 'pixelated',
+            }}
+          />
+        </span>
       </span>
     </span>
   )
@@ -566,6 +594,12 @@ export function BlockLookup() {
                     className={`grid w-full ${resultsColumns} items-center gap-4 rounded-2xl border bg-card px-4 py-4 text-left transition hover:border-blue-500/50 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-500/20`}
                   >
                     <span className="flex min-w-0 items-center gap-3">
+                      <span
+                        aria-label={`Rank ${index + 1}`}
+                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold tabular-nums text-muted-foreground"
+                      >
+                        {index + 1}
+                      </span>
                       <BlockIcon material={row.block ?? ''} size={32} />
                       <p className="min-w-0 truncate text-[0.95rem] font-bold">
                         {formatMaterial(row.block ?? '')}
@@ -580,6 +614,7 @@ export function BlockLookup() {
                       total={row.denominatorBroken}
                       color="bg-blue-500"
                       label={`${formatMaterial(row.block ?? '')} broken share`}
+                      patternUrl={blockTextureUrl(row.block ?? '')}
                     />
                     <span className="text-right text-[1.0625rem] font-bold tabular-nums text-green-500">
                       {row.placed.toLocaleString()}
@@ -589,6 +624,7 @@ export function BlockLookup() {
                       total={row.denominatorPlaced}
                       color="bg-green-500"
                       label={`${formatMaterial(row.block ?? '')} placed share`}
+                      patternUrl={blockTextureUrl(row.block ?? '')}
                     />
                     <span />
                   </button>
@@ -603,6 +639,12 @@ export function BlockLookup() {
                     className={`grid w-full ${resultsColumns} items-center gap-4 rounded-2xl border bg-card px-4 py-4 text-left transition hover:border-blue-500/50 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-500/20`}
                   >
                     <span className="flex min-w-0 items-center gap-3">
+                      <span
+                        aria-label={`Rank ${index + 1}`}
+                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold tabular-nums text-muted-foreground"
+                      >
+                        {index + 1}
+                      </span>
                       <PlayerSkinAvatar name={row.player} size={40} />
                       <span className="min-w-0">
                         <span className="block truncate text-[1.0625rem] font-bold">{row.player}</span>
@@ -619,6 +661,7 @@ export function BlockLookup() {
                       total={row.denominatorBroken}
                       color="bg-blue-500"
                       label={`${row.player} broken share`}
+                      patternUrl={playerTextureUrl(row.player)}
                     />
                     <span className="text-right text-[1.0625rem] font-bold tabular-nums text-green-500">
                       {row.placed.toLocaleString()}
@@ -628,6 +671,7 @@ export function BlockLookup() {
                       total={row.denominatorPlaced}
                       color="bg-green-500"
                       label={`${row.player} placed share`}
+                      patternUrl={playerTextureUrl(row.player)}
                     />
                     <ChevronRight className="h-5 w-5 text-muted-foreground" />
                   </button>
