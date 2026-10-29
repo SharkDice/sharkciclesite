@@ -585,18 +585,35 @@ app.get('/lookup', (req, res) => {
   if (view === 'players') {
     try {
       const rows = statsDb.prepare(`
-        SELECT u.name AS player,
-               SUM(CASE WHEN b.action = 0 THEN b.count ELSE 0 END) AS broken,
-               SUM(CASE WHEN b.action = 1 THEN b.count ELSE 0 END) AS placed,
-               COUNT(DISTINCT b.material_id) AS blockTypes
-        FROM block_stats b
-        JOIN users u ON u.id = b.user_id
-        JOIN materials m ON m.id = b.material_id
-        ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
-        GROUP BY b.user_id
-        ORDER BY ${LOOKUP_SORTS[sortKey]}
+        WITH overall_totals AS (
+          SELECT SUM(CASE WHEN action = 0 THEN count ELSE 0 END) AS broken,
+                 SUM(CASE WHEN action = 1 THEN count ELSE 0 END) AS placed
+          FROM block_stats
+        ),
+        filtered_totals AS (
+          SELECT b.user_id,
+                 SUM(CASE WHEN b.action = 0 THEN b.count ELSE 0 END) AS broken,
+                 SUM(CASE WHEN b.action = 1 THEN b.count ELSE 0 END) AS placed,
+                 COUNT(DISTINCT b.material_id) AS blockTypes
+          FROM block_stats b
+          JOIN materials m ON m.id = b.material_id
+          ${block ? 'WHERE m.name = ?' : ''}
+          GROUP BY b.user_id
+        )
+        SELECT u.name AS player, f.broken, f.placed, f.blockTypes,
+               ot.broken AS denominatorBroken, ot.placed AS denominatorPlaced
+        FROM filtered_totals f
+        JOIN users u ON u.id = f.user_id
+        CROSS JOIN overall_totals ot
+        ${playerExact ? 'WHERE u.name = ? COLLATE NOCASE' : player ? "WHERE u.name LIKE ? ESCAPE '\\' COLLATE NOCASE" : ''}
+        ORDER BY ${sortKey === 'total' ? 'f.broken + f.placed' : `f.${sortKey}`} DESC
         LIMIT ? OFFSET ?
-      `).all(...params, limit + 1, offset);
+      `).all(
+        ...(block ? [block.toLowerCase().replace(/ /g, '_')] : []),
+        ...(playerExact ? [playerExact] : player ? [`%${player.replace(/[\\%_]/g, '\\$&')}%`] : []),
+        limit + 1,
+        offset
+      );
 
       res.setHeader('Cache-Control', 'public, max-age=60');
       return res.json({ success: true, hasMore: rows.length > limit, rows: rows.slice(0, limit) });
@@ -642,16 +659,34 @@ app.get('/lookup', (req, res) => {
     }
   }
 
-  const orderBy = LOOKUP_SORTS[sortKey];
+  const orderBy = sortKey === 'total'
+    ? 'SUM(CASE WHEN b.action = 0 THEN b.count ELSE 0 END) + SUM(CASE WHEN b.action = 1 THEN b.count ELSE 0 END) DESC'
+    : `SUM(CASE WHEN b.action = ${sortKey === 'broken' ? '0' : '1'} THEN b.count ELSE 0 END) DESC`;
 
   try {
     const rows = statsDb.prepare(`
+      WITH player_totals AS (
+        SELECT user_id,
+               SUM(CASE WHEN action = 0 THEN count ELSE 0 END) AS broken,
+               SUM(CASE WHEN action = 1 THEN count ELSE 0 END) AS placed
+        FROM block_stats
+        GROUP BY user_id
+      ),
+      overall_totals AS (
+        SELECT SUM(CASE WHEN action = 0 THEN count ELSE 0 END) AS broken,
+               SUM(CASE WHEN action = 1 THEN count ELSE 0 END) AS placed
+        FROM block_stats
+      )
       SELECT u.name AS player, m.name AS block,
              SUM(CASE WHEN b.action = 0 THEN b.count ELSE 0 END) AS broken,
-             SUM(CASE WHEN b.action = 1 THEN b.count ELSE 0 END) AS placed
+             SUM(CASE WHEN b.action = 1 THEN b.count ELSE 0 END) AS placed,
+             CASE WHEN ${block ? '1' : '0'} = 1 THEN ot.broken ELSE pt.broken END AS denominatorBroken,
+             CASE WHEN ${block ? '1' : '0'} = 1 THEN ot.placed ELSE pt.placed END AS denominatorPlaced
       FROM block_stats b
       JOIN users u ON u.id = b.user_id
       JOIN materials m ON m.id = b.material_id
+      JOIN player_totals pt ON pt.user_id = b.user_id
+      CROSS JOIN overall_totals ot
       WHERE ${where.join(' AND ')}
       GROUP BY b.user_id, b.material_id
       ORDER BY ${orderBy}

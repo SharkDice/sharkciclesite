@@ -22,6 +22,8 @@ interface LookupRow {
   broken: number
   placed: number
   blockTypes?: number
+  denominatorBroken: number
+  denominatorPlaced: number
 }
 
 const PAGE_SIZE = 100
@@ -87,6 +89,49 @@ function formatMaterial(material: string) {
     .join(' ')
 }
 
+function formatPercentage(value: number, total: number) {
+  if (total <= 0) return '0%'
+  return `${((value / total) * 100).toLocaleString(undefined, { maximumFractionDigits: 1 })}%`
+}
+
+function percentageWidth(value: number, total: number) {
+  if (total <= 0) return 0
+  return Math.min(100, Math.max(0, (value / total) * 100))
+}
+
+function ShareMeter({
+  value,
+  total,
+  color,
+  label,
+}: {
+  value: number
+  total: number
+  color: 'bg-blue-500' | 'bg-green-500'
+  label: string
+}) {
+  return (
+    <span className="flex min-w-0 flex-col justify-center gap-2 self-stretch">
+      <span className="text-center text-sm font-medium tabular-nums text-muted-foreground">
+        {formatPercentage(value, total)}
+      </span>
+      <span
+        className="h-4 w-full overflow-hidden rounded-full bg-muted"
+        role="meter"
+        aria-label={label}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={percentageWidth(value, total)}
+      >
+        <span
+          className={`block h-full rounded-full ${color}`}
+          style={{ width: `${percentageWidth(value, total)}%` }}
+        />
+      </span>
+    </span>
+  )
+}
+
 function PlayerSkinAvatar({ name, size = 40 }: { name: string; size?: number }) {
   const [failed, setFailed] = useState(false)
 
@@ -146,7 +191,7 @@ export function BlockIcon({ material, size = 20 }: { material: string; size?: nu
     return (
       <span
         aria-hidden="true"
-        className="inline-block shrink-0"
+        className="inline-block shrink-0 overflow-hidden"
         style={{
           width: size,
           height: size,
@@ -167,17 +212,22 @@ export function BlockIcon({ material, size = 20 }: { material: string; size?: nu
       : `${MC_ASSETS_BASE}/item/${material}.png`
 
   return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={src}
-      alt=""
-      width={size}
-      height={size}
-      className="inline-block shrink-0"
-      style={{ imageRendering: 'pixelated' }}
-      loading="lazy"
-      onError={() => setStage((s) => s + 1)}
-    />
+    <span
+      aria-hidden="true"
+      className="inline-block shrink-0 overflow-hidden"
+      style={{ width: size, height: size, lineHeight: 0 }}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt=""
+        width={size}
+        className="block max-w-none"
+        style={{ width: size, height: 'auto', imageRendering: 'pixelated' }}
+        loading="lazy"
+        onError={() => setStage((s) => s + 1)}
+      />
+    </span>
   )
 }
 
@@ -195,6 +245,7 @@ export function BlockLookup() {
   const [player, setPlayer] = useState('')
   const [block, setBlock] = useState('')
   const [focusedPlayer, setFocusedPlayer] = useState<string | null>(null)
+  const [focusedBlock, setFocusedBlock] = useState<string | null>(null)
   const [sort, setSort] = useState<SortOption>('total')
   const [rows, setRows] = useState<LookupRow[]>([])
   const [hasMore, setHasMore] = useState(false)
@@ -236,8 +287,8 @@ export function BlockLookup() {
     const controller = new AbortController()
     requestController.current = controller
     const queryPlayer = player.trim()
-    const queryBlock = block.trim()
-    const playerView = focusedPlayer === null
+    const queryBlock = focusedBlock ?? block.trim()
+    const playerView = focusedPlayer === null || focusedBlock !== null
 
     setLoading(true)
     setError(null)
@@ -253,9 +304,13 @@ export function BlockLookup() {
           sort,
           view: playerView ? 'players' : 'blocks',
         })
-        if (focusedPlayer) qs.set('playerExact', focusedPlayer)
+        if (focusedBlock) {
+          qs.set('block', focusedBlock)
+        } else if (focusedPlayer) {
+          qs.set('playerExact', focusedPlayer)
+        }
         else if (queryPlayer) qs.set('player', queryPlayer)
-        if (queryBlock) qs.set('block', queryBlock)
+        if (queryBlock && !focusedBlock) qs.set('block', queryBlock)
 
         const response = await fetch(`/api/block-lookup?${qs.toString()}`, {
           signal: controller.signal,
@@ -271,6 +326,8 @@ export function BlockLookup() {
           typeof row.player !== 'string' ||
           typeof row.broken !== 'number' ||
           typeof row.placed !== 'number' ||
+          typeof row.denominatorBroken !== 'number' ||
+          typeof row.denominatorPlaced !== 'number' ||
           (playerView ? typeof row.blockTypes !== 'number' : typeof row.block !== 'string')
         )) {
           throw new Error('The block lookup returned invalid player or block records')
@@ -294,10 +351,12 @@ export function BlockLookup() {
       clearTimeout(timeout)
       controller.abort()
     }
-  }, [player, block, focusedPlayer, sort, retryKey])
+  }, [player, block, focusedPlayer, focusedBlock, sort, retryKey])
 
   const inputClass =
     'h-12 w-full rounded-xl border border-border bg-background pl-11 pr-10 text-sm shadow-sm outline-none transition placeholder:text-muted-foreground/80 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10'
+  const resultsColumns = 'grid-cols-[200px_100px_minmax(150px,1fr)_100px_minmax(150px,1fr)_20px]'
+  const showingPlayerResults = focusedPlayer === null || focusedBlock !== null
 
   return (
     <div className="space-y-6">
@@ -318,6 +377,7 @@ export function BlockLookup() {
                   value={player}
                   onChange={(event) => {
                     setFocusedPlayer(null)
+                    setFocusedBlock(null)
                     setPlayer(event.target.value)
                   }}
                   autoComplete="off"
@@ -328,6 +388,7 @@ export function BlockLookup() {
                     aria-label="Clear player filter"
                     onClick={() => {
                       setFocusedPlayer(null)
+                      setFocusedBlock(null)
                       setPlayer('')
                     }}
                     className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -353,14 +414,22 @@ export function BlockLookup() {
                   list="lookup-materials"
                   placeholder="Filter by block"
                   value={block}
-                  onChange={(event) => setBlock(event.target.value)}
+                  onChange={(event) => {
+                    setFocusedPlayer(null)
+                    setFocusedBlock(null)
+                    setBlock(event.target.value)
+                  }}
                   autoComplete="off"
                 />
                 {block && (
                   <button
                     type="button"
                     aria-label="Clear block filter"
-                    onClick={() => setBlock('')}
+                    onClick={() => {
+                      setFocusedPlayer(null)
+                      setFocusedBlock(null)
+                      setBlock('')
+                    }}
                     className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
                   >
                     <X className="h-4 w-4" />
@@ -406,7 +475,7 @@ export function BlockLookup() {
             </p>
           )}
 
-          {focusedPlayer && (
+          {focusedPlayer && !focusedBlock && (
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-blue-500/5 px-4 py-3">
               <div className="flex items-center gap-3">
                 <PlayerSkinAvatar name={focusedPlayer} size={40} />
@@ -418,6 +487,26 @@ export function BlockLookup() {
               <button
                 type="button"
                 onClick={() => setFocusedPlayer(null)}
+                className="inline-flex min-h-10 items-center gap-2 rounded-lg border bg-background px-4 text-xs font-semibold hover:bg-muted"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back
+              </button>
+            </div>
+          )}
+
+          {focusedBlock && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-blue-500/5 px-4 py-3">
+              <div className="flex items-center gap-3">
+                <BlockIcon material={focusedBlock} size={32} />
+                <div>
+                  <p className="text-xs text-muted-foreground">Top players for</p>
+                  <p className="text-[0.95rem] font-bold">{formatMaterial(focusedBlock)}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFocusedBlock(null)}
                 className="inline-flex min-h-10 items-center gap-2 rounded-lg border bg-background px-4 text-xs font-semibold hover:bg-muted"
               >
                 <ArrowLeft className="h-4 w-4" />
@@ -458,74 +547,92 @@ export function BlockLookup() {
               </p>
             </div>
           ) : rows.length > 0 ? (
-            <div className="space-y-3" aria-live="polite">
-              {!focusedPlayer && (
-                <div className="hidden grid-cols-[minmax(0,1fr)_minmax(140px,0.55fr)_minmax(140px,0.55fr)_24px] gap-4 px-5 text-xs font-semibold text-muted-foreground sm:grid">
-                  <span>Player</span>
+            <div className="-mx-3 overflow-x-auto px-3 sm:mx-0 sm:px-0" aria-live="polite">
+              <div className="w-full min-w-[840px] space-y-3">
+                <div className={`grid ${resultsColumns} items-center gap-4 px-4 text-xs font-semibold text-muted-foreground`}>
+                  <span>{showingPlayerResults ? 'Player' : 'Block'}</span>
                   <span className="text-right">Blocks broken</span>
+                  <span />
                   <span className="text-right">Blocks placed</span>
                   <span />
+                  <span />
                 </div>
-              )}
-              {rows.map((row, index) => focusedPlayer ? (
-                <div
-                  key={`${row.player}-${row.block}`}
-                  className="grid gap-4 rounded-2xl border bg-card p-4 sm:grid-cols-[minmax(0,1fr)_minmax(150px,0.55fr)_minmax(150px,0.55fr)] sm:items-center sm:px-5"
-                >
-                  <div className="flex min-w-0 items-center gap-4">
-                    <BlockIcon material={row.block ?? ''} size={32} />
-                    <div className="min-w-0">
-                      <p className="truncate text-[0.95rem] font-bold">{formatMaterial(row.block ?? '')}</p>
-                      <p className="text-xs text-muted-foreground">Block type</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between sm:block sm:text-right">
-                    <span className="text-xs text-muted-foreground sm:hidden">Blocks broken</span>
-                    <span className="text-[1.0625rem] font-bold tabular-nums text-blue-500">
+                {rows.map((row, index) => !showingPlayerResults ? (
+                  <button
+                    key={`${row.player}-${row.block}`}
+                    type="button"
+                    onClick={() => row.block && setFocusedBlock(row.block)}
+                    aria-label={`Show players who broke or placed ${formatMaterial(row.block ?? '')}`}
+                    className={`grid w-full ${resultsColumns} items-center gap-4 rounded-2xl border bg-card px-4 py-4 text-left transition hover:border-blue-500/50 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-500/20`}
+                  >
+                    <span className="flex min-w-0 items-center gap-3">
+                      <BlockIcon material={row.block ?? ''} size={32} />
+                      <p className="min-w-0 truncate text-[0.95rem] font-bold">
+                        {formatMaterial(row.block ?? '')}
+                      </p>
+                      <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-muted-foreground" />
+                    </span>
+                    <span className="text-right text-[1.0625rem] font-bold tabular-nums text-blue-500">
                       {row.broken.toLocaleString()}
                     </span>
-                  </div>
-                  <div className="flex items-center justify-between sm:block sm:text-right">
-                    <span className="text-xs text-muted-foreground sm:hidden">Blocks placed</span>
-                    <span className="text-[1.0625rem] font-bold tabular-nums text-green-500">
+                    <ShareMeter
+                      value={row.broken}
+                      total={row.denominatorBroken}
+                      color="bg-blue-500"
+                      label={`${formatMaterial(row.block ?? '')} broken share`}
+                    />
+                    <span className="text-right text-[1.0625rem] font-bold tabular-nums text-green-500">
                       {row.placed.toLocaleString()}
                     </span>
-                  </div>
-                </div>
-              ) : (
-                <button
-                  key={row.player}
-                  type="button"
-                  onClick={() => setFocusedPlayer(row.player)}
-                  className="grid w-full gap-4 rounded-2xl border bg-card p-4 text-left transition hover:border-blue-500/50 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-500/20 sm:grid-cols-[minmax(0,1fr)_minmax(140px,0.55fr)_minmax(140px,0.55fr)_24px] sm:items-center sm:px-5"
-                >
-                  <span className="flex min-w-0 items-center gap-4">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted text-xs font-bold tabular-nums text-muted-foreground">
-                      {index + 1}
-                    </span>
-                    <PlayerSkinAvatar name={row.player} size={48} />
-                    <span className="min-w-0">
-                      <span className="block truncate text-[1.0625rem] font-bold">{row.player}</span>
-                      <span className="mt-1 block text-xs text-muted-foreground">
-                        {row.blockTypes?.toLocaleString()} block types · View block details
+                    <ShareMeter
+                      value={row.placed}
+                      total={row.denominatorPlaced}
+                      color="bg-green-500"
+                      label={`${formatMaterial(row.block ?? '')} placed share`}
+                    />
+                    <span />
+                  </button>
+                ) : (
+                  <button
+                    key={row.player}
+                    type="button"
+                    onClick={() => {
+                      setFocusedBlock(null)
+                      setFocusedPlayer(row.player)
+                    }}
+                    className={`grid w-full ${resultsColumns} items-center gap-4 rounded-2xl border bg-card px-4 py-4 text-left transition hover:border-blue-500/50 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-500/20`}
+                  >
+                    <span className="flex min-w-0 items-center gap-3">
+                      <PlayerSkinAvatar name={row.player} size={40} />
+                      <span className="min-w-0">
+                        <span className="block truncate text-[1.0625rem] font-bold">{row.player}</span>
+                        <span className="mt-1 block truncate text-xs text-muted-foreground">
+                          {row.blockTypes?.toLocaleString()} block types · View details
+                        </span>
                       </span>
                     </span>
-                  </span>
-                  <span className="flex items-center justify-between sm:block sm:text-right">
-                    <span className="text-xs text-muted-foreground sm:hidden">Blocks broken</span>
-                    <span className="text-[1.0625rem] font-bold tabular-nums text-blue-500">
+                    <span className="text-right text-[1.0625rem] font-bold tabular-nums text-blue-500">
                       {row.broken.toLocaleString()}
                     </span>
-                  </span>
-                  <span className="flex items-center justify-between sm:block sm:text-right">
-                    <span className="text-xs text-muted-foreground sm:hidden">Blocks placed</span>
-                    <span className="text-[1.0625rem] font-bold tabular-nums text-green-500">
+                    <ShareMeter
+                      value={row.broken}
+                      total={row.denominatorBroken}
+                      color="bg-blue-500"
+                      label={`${row.player} broken share`}
+                    />
+                    <span className="text-right text-[1.0625rem] font-bold tabular-nums text-green-500">
                       {row.placed.toLocaleString()}
                     </span>
-                  </span>
-                  <ChevronRight className="hidden h-5 w-5 text-muted-foreground sm:block" />
-                </button>
-              ))}
+                    <ShareMeter
+                      value={row.placed}
+                      total={row.denominatorPlaced}
+                      color="bg-green-500"
+                      label={`${row.player} placed share`}
+                    />
+                    <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                  </button>
+                ))}
+              </div>
             </div>
           ) : null}
 
@@ -543,11 +650,12 @@ export function BlockLookup() {
                       limit: String(PAGE_SIZE),
                       offset: String(rows.length),
                       sort,
-                      view: focusedPlayer ? 'blocks' : 'players',
+                      view: showingPlayerResults ? 'players' : 'blocks',
                     })
-                    if (focusedPlayer) qs.set('playerExact', focusedPlayer)
+                    if (focusedBlock) qs.set('block', focusedBlock)
+                    else if (focusedPlayer && !showingPlayerResults) qs.set('playerExact', focusedPlayer)
                     else if (player.trim()) qs.set('player', player.trim())
-                    if (block.trim()) qs.set('block', block.trim())
+                    if (!focusedBlock && block.trim()) qs.set('block', block.trim())
                     const response = await fetch(`/api/block-lookup?${qs.toString()}`, {
                       signal: controller?.signal,
                     })
