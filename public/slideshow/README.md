@@ -3,21 +3,18 @@
 ## How to Add Images to the Slideshow
 
 1. Place your images in the `public/slideshow/` folder
-2. Images are automatically detected and displayed in alphabetical order
+2. Images are automatically detected and displayed by their numeric filename prefix
 3. Supported formats: `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`
 
-## Naming Convention (Optional)
+## Naming Convention
 
-To control the order images appear, you can name them with numbers:
-- `1.png` (first image)
-- `2.png` (second image)
-- `3.png` (third image)
-- etc.
+Start each filename with its order number and a hyphen. For example:
+- `01-screenshot.png` (first image)
+- `02-build.jpg` (second image)
+- `03-landscape.png` (third image)
 
-Or with descriptive names that sort alphabetically:
-- `a_screenshot.png`
-- `b_build.png`
-- `c_landscape.png`
+To rearrange the slideshow, change the number prefixes. Use leading zeroes to
+keep filenames easy to scan; images are sorted numerically, not alphabetically.
 
 ## Features
 
@@ -29,9 +26,9 @@ Or with descriptive names that sort alphabetically:
 ## Example
 
 To have 3 images in your slideshow:
-1. `public/slideshow/1.png`
-2. `public/slideshow/2.png`
-3. `public/slideshow/3.png`
+1. `public/slideshow/01-screenshot.png`
+2. `public/slideshow/02-build.png`
+3. `public/slideshow/03-landscape.png`
 
 The slideshow will automatically load all images and cycle through them!
 
