@@ -76,6 +76,22 @@ const frequentlyAskedQuestions = [
       "No. We have played on the same world since December 2021, and we have no plans to reset it. Your progress and creations will remain part of the world.",
   },
   {
+    question: "How can I find new blocks and biomes after an update?",
+    answer: (
+      <>
+        Because the world does not reset, areas that have already been explored
+        will not generate new blocks, biomes, or mobs from an update. To help
+        everyone find new content, we expand the range of our random
+        teleportation plugin with each update, making it easier to reach
+        unexplored chunks. Use{" "}
+        <code className="rounded bg-black/30 px-1.5 py-0.5 font-mono text-cyan-200">
+          /rtp
+        </code>{" "}
+        in game to teleport to a random location away from other players.
+      </>
+    ),
+  },
+  {
     question: "I joined a server and it shut down after a month. Will this server shut down?",
     answer:
       "Sharkcicle SMP has been running smoothly since December 2021, and we are committed to keeping the server online and operational.",
@@ -84,6 +100,11 @@ const frequentlyAskedQuestions = [
     question: "What makes this server different from other servers?",
     answer:
       "Sharkcicle SMP gives players a great deal of freedom. From server tools that help you build and manage your creations to commands and plugins that support your projects, we want to give you the tools to bring your ideas to life. Our close-knit community welcomes everyone to share their favorite topics and special interests. Here, the power is in the players.",
+  },
+  {
+    question: "Are there any paid cosmetics, items, or subscriptions?",
+    answer:
+      "Sharkcicle SMP is free to play, and we will never charge for server cosmetics or features. We value community, friendship, and freedom over money.",
   },
 ]
 
