@@ -4,6 +4,7 @@ import {
   getAllArticles,
   newsArticleSchema,
   removeNewsImage,
+  sanitizeNewsContent,
   saveArticles,
   type NewsArticle,
 } from "@/lib/news"
@@ -25,6 +26,10 @@ function storageError(error: unknown, action: string): NextResponse {
     { error: `Unable to ${action} news articles. Check the server logs for details.` },
     { status: 500 },
   )
+}
+
+function sanitizeHtmlText(content: string): string {
+  return content.replace(/<[^>]*>/g, "").replace(/&nbsp;|&#160;/gi, " ").trim()
 }
 
 export async function GET(request: NextRequest) {
@@ -59,6 +64,15 @@ export async function POST(request: NextRequest) {
     )
   }
 
+  const content = sanitizeNewsContent(parsedInput.data.content)
+  const textContent = sanitizeHtmlText(content)
+  if (!textContent) {
+    return NextResponse.json(
+      { error: "Article content must include some text." },
+      { status: 400 },
+    )
+  }
+
   try {
     const articles = await getAllArticles()
     const articleId = parsedInput.data.id
@@ -74,6 +88,7 @@ export async function POST(request: NextRequest) {
       existingIndex >= 0 ? articles[existingIndex].image : undefined
     const article: NewsArticle = {
       ...parsedInput.data,
+      content,
       id: articleId ?? randomUUID(),
       updatedAt: new Date().toISOString(),
     }

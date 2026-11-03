@@ -3,7 +3,11 @@ import Image from "next/image"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import { Navigation } from "@/components/navigation"
-import { getPublishedArticle, getPublishedArticles } from "@/lib/news"
+import {
+  getNewsContentHtml,
+  getPublishedArticle,
+  getPublishedArticles,
+} from "@/lib/news"
 
 export const dynamic = "force-dynamic"
 
@@ -81,15 +85,10 @@ export default async function NewsArticlePage({
             />
           )}
 
-          <div className="mt-8 space-y-5 text-base leading-7 text-gray-200">
-            {article.content.split(/\n\s*\n/).map((paragraph, index) => (
-              <p
-                key={`${article.id}-${index}`}
-                className="whitespace-pre-wrap"
-              >
-                {paragraph}
-              </p>
-            ))}
+          <div
+            className="news-article-content mt-8 text-base leading-7 text-gray-200"
+            dangerouslySetInnerHTML={{ __html: getNewsContentHtml(article.content) }}
+          >
           </div>
         </article>
 

@@ -5,15 +5,18 @@ import { ServerStatus } from "@/components/server-status"
 import { ServerActivity } from "@/components/server-activity"
 import { ImageSlideshow } from "@/components/image-slideshow"
 import { CommunityQuotes } from "@/components/community-quotes"
+import { EventsCalendar } from "@/components/events-calendar"
 import { getCommunityQuotes } from "@/lib/community-quotes"
+import { getAllEvents } from "@/lib/events"
 import { getPublishedArticles } from "@/lib/news"
 
 export const dynamic = "force-dynamic"
 
 export default async function MinecraftServer() {
-  const [articles, communityQuotes] = await Promise.all([
+  const [articles, communityQuotes, events] = await Promise.all([
     getPublishedArticles(),
     getCommunityQuotes(),
+    getAllEvents(),
   ])
 
   return (
@@ -106,6 +109,8 @@ export default async function MinecraftServer() {
         </div>
       </section>
 
+      <EventsCalendar events={events} />
+
       <CommunityQuotes quotes={communityQuotes} />
 
       {/* Server Status */}
@@ -150,9 +155,12 @@ export default async function MinecraftServer() {
           <p>Application approval required to join.</p>
           <p>For business inquiries please email sharkcicle@gmail.com</p>
           <p className="mt-2">Server IP: play.sharkcicle.com</p>
-          <p className="mt-4">
+          <p className="mt-4 flex justify-center gap-4">
             <a href="/admin/news" className="text-gray-500 underline hover:text-gray-300">
               News editor
+            </a>
+            <a href="/admin/events" className="text-gray-500 underline hover:text-gray-300">
+              Events editor
             </a>
           </p>
         </div>

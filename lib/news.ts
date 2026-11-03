@@ -1,7 +1,66 @@
 import { randomUUID } from "crypto"
 import { mkdir, readFile, rename, unlink, writeFile } from "fs/promises"
 import path from "path"
+import sanitizeHtml from "sanitize-html"
 import { z } from "zod"
+
+const newsContentSanitizerOptions: sanitizeHtml.IOptions = {
+  allowedTags: [
+    "p",
+    "br",
+    "strong",
+    "b",
+    "em",
+    "i",
+    "u",
+    "s",
+    "ul",
+    "ol",
+    "li",
+    "blockquote",
+    "span",
+    "h2",
+    "h3",
+    "div",
+  ],
+  allowedAttributes: {
+    span: ["style"],
+  },
+  allowedStyles: {
+    span: {
+      "font-size": [/^(12|14|16|18|24|32)px$/],
+    },
+  },
+}
+const formattedContentPattern =
+  /<(?:p|br|strong|b|em|i|u|s|ul|ol|li|blockquote|span|h[23]|div)(?:\s|\/?>)/i
+
+export function sanitizeNewsContent(content: string): string {
+  return sanitizeHtml(content, newsContentSanitizerOptions).trim()
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
+}
+
+export function getNewsContentHtml(content: string): string {
+  const source = formattedContentPattern.test(content)
+    ? content
+    : content
+        .split(/\n\s*\n/)
+        .map(
+          (paragraph) =>
+            `<p>${escapeHtml(paragraph).replace(/\n/g, "<br />")}</p>`,
+        )
+        .join("")
+
+  return sanitizeNewsContent(source)
+}
 
 const articleDate = z
   .string()

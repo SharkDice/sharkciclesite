@@ -7,6 +7,7 @@ import { ArrowLeft, FilePlus2, ImagePlus, Loader2, Trash2, X } from "lucide-reac
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { NewsRichTextEditor } from "@/components/news-rich-text-editor"
 import type { NewsArticle } from "@/lib/news"
 
 type ArticleForm = Pick<
@@ -230,6 +231,12 @@ export function NewsManager() {
         <p className="mt-2 text-gray-400">
           SharkcicleSmp Gazette Accounts Only!
         </p>
+        <Link
+          href="/admin/events"
+          className="mt-3 inline-block text-sm text-cyan-300 underline underline-offset-2 hover:text-cyan-200"
+        >
+          Open events calendar editor
+        </Link>
       </header>
 
       {!authenticated ? (
@@ -468,17 +475,13 @@ export function NewsManager() {
               <label htmlFor="article-content" className="mb-2 block text-sm font-medium">
                 Article
               </label>
-              <Textarea
-                id="article-content"
-                value={form.content}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, content: event.target.value }))
+              <NewsRichTextEditor
+                key={editingId ?? "new-article"}
+                initialContent={form.content}
+                disabled={loading}
+                onChange={(content) =>
+                  setForm((current) => ({ ...current, content }))
                 }
-                maxLength={20000}
-                rows={12}
-                required
-                placeholder="Write your weekly update here. Separate paragraphs with a blank line."
-                className="border-gray-600 bg-[#1A1C1E] text-white"
               />
             </div>
 
