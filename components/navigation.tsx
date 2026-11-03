@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { DiscIcon as Discord, Map, Book, LucideImage, BarChart3 } from "lucide-react"
+import { DiscIcon as Discord, Map, Book, LucideImage, BarChart3, CircleHelp } from "lucide-react"
 
 interface NavigationProps {
   className?: string
@@ -29,6 +29,12 @@ export function Navigation({ className }: NavigationProps) {
       external: false,
     },
     {
+      name: "FAQ",
+      href: "/faq",
+      icon: <CircleHelp className="h-5 w-5" />,
+      external: false,
+    },
+    {
       name: "Discord",
       href: "https://discord.com/invite/UNBQwEdaaP",
       icon: <Discord className="h-5 w-5" />,
@@ -52,11 +58,11 @@ export function Navigation({ className }: NavigationProps) {
               href={link.href}
               target={link.external ? "_blank" : undefined}
               rel={link.external ? "noopener noreferrer" : undefined}
-              className="text-center"
+              className="min-w-0 flex-1 text-center sm:flex-none"
             >
               <Button
                 variant="ghost"
-                className="text-white hover:bg-[#34373C] hover:text-white flex flex-col items-center p-1 sm:p-2 w-[70px] sm:w-auto"
+                className="text-white hover:bg-[#34373C] hover:text-white flex w-full flex-col items-center p-1 sm:w-auto sm:p-2"
               >
                 {link.icon}
                 <span className="mt-1 text-[10px] sm:text-xs whitespace-nowrap">{link.name}</span>
@@ -68,4 +74,3 @@ export function Navigation({ className }: NavigationProps) {
     </nav>
   )
 }
-
