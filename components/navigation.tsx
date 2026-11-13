@@ -36,7 +36,7 @@ export function Navigation({ className }: NavigationProps) {
     },
     {
       name: "Discord",
-      href: "https://discord.com/invite/UNBQwEdaaP",
+      href: "https://discord.com/invite/WxQQt8eB",
       icon: <Discord className="h-5 w-5" />,
       external: true,
     },
