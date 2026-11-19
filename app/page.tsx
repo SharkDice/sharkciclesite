@@ -34,6 +34,14 @@ export default async function MinecraftServer() {
             is unwavering; the server will persist indefinitely, ensuring your creations endure. Join our
             vibrant community through the Discord link above and be part of something extraordinary!
           </p>
+          <Link
+            href="https://discord.com/invite/CYyPAxScfZ"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-8 inline-flex min-h-16 items-center justify-center rounded-xl bg-[#5865F2] px-10 py-5 text-xl font-extrabold tracking-wide text-white shadow-lg transition-colors hover:bg-[#4752C4] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#5865F2]/50 sm:text-2xl"
+          >
+            CLICK TO JOIN
+          </Link>
         </div>
       </section>
 
